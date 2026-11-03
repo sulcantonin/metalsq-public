@@ -1,0 +1,15 @@
+{
+  "_note": "Scoring changed from a 257-point finite-difference reference (linear interpolation, itself ~2.1e-5 RMS off the true solution) to the closed-form exact solution. Tasks, basis, meta-objective, selection rule and timing are unchanged.",
+  "error_metric": "absolute RMS error vs closed-form exact solution at 200 uniform points on [0, 2pi] (endpoints included), averaged over tasks",
+  "n_eval": 200,
+  "mean_meta_L2": 2.544999178471875e-05,
+  "mean_auto_L2": 9.321389573733868e-07,
+  "t_meta_train": 21.878668069839478,
+  "t_meta_eval": 0.41655588150024414,
+  "t_auto_eval": 3.2340428829193115,
+  "sigma_star": 3.269359753028321,
+  "mu_star": 4.37262720752239e-08,
+  "auto_sigma_min": 2.0,
+  "auto_sigma_max": 4.0,
+  "n_test": 50
+}

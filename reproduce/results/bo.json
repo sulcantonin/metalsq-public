@@ -1,0 +1,38 @@
+{
+  "branin": {
+    "true_min": 0.397887,
+    "random": {
+      "final_regret_mean": 1.6713416567918007,
+      "final_regret_std": 2.9644951636470127,
+      "time_s": 0.0014338493347167969
+    },
+    "meta_lsq": {
+      "final_regret_mean": 0.6906769841096192,
+      "final_regret_std": 0.8236161157406984,
+      "time_s": 5.798605442047119
+    },
+    "gp": {
+      "final_regret_mean": 0.04846639060277844,
+      "final_regret_std": 0.026622639112468986,
+      "time_s": 24.98512601852417
+    }
+  },
+  "hartmann6": {
+    "true_min": -3.32237,
+    "random": {
+      "final_regret_mean": 1.260705690470171,
+      "final_regret_std": 0.5081839717992016,
+      "time_s": 0.0020346641540527344
+    },
+    "meta_lsq": {
+      "final_regret_mean": 0.9683055355893906,
+      "final_regret_std": 0.2891586307538224,
+      "time_s": 8.257779598236084
+    },
+    "gp": {
+      "final_regret_mean": 0.39165989748405067,
+      "final_regret_std": 0.07506489399241646,
+      "time_s": 48.42919993400574
+    }
+  }
+}

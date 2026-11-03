@@ -1,0 +1,131 @@
+{
+  "gp_derivatives": {
+    "test_mse": {
+      "mean": 0.0862,
+      "std": 0.0
+    },
+    "ms_per_task": 0.7
+  },
+  "derivative_metrics": {
+    "vanilla": {
+      "val": {
+        "mean": 0.05973600020051989,
+        "std": 0.0433252953410474
+      },
+      "grad": {
+        "mean": 0.06662918512172297,
+        "std": 0.03999103230875496
+      },
+      "hess": {
+        "mean": 0.0865886076510907,
+        "std": 0.06709773572252739
+      }
+    },
+    "sobolev": {
+      "val": {
+        "mean": 0.01888830789299333,
+        "std": 0.016143485590184466
+      },
+      "grad": {
+        "mean": 0.016865486029573943,
+        "std": 0.006449282722213002
+      },
+      "hess": {
+        "mean": 0.019308164127677184,
+        "std": 0.011099472291708119
+      }
+    }
+  },
+  "w_sweep": [
+    {
+      "w": 0.0,
+      "val_mse": {
+        "mean": 0.0804,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.104,
+        "std": 0.0
+      }
+    },
+    {
+      "w": 0.1,
+      "val_mse": {
+        "mean": 0.0301,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.032,
+        "std": 0.0
+      }
+    },
+    {
+      "w": 0.3,
+      "val_mse": {
+        "mean": 0.025,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.027,
+        "std": 0.0
+      }
+    },
+    {
+      "w": 1.0,
+      "val_mse": {
+        "mean": 0.0218,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.023,
+        "std": 0.0
+      }
+    },
+    {
+      "w": 3.0,
+      "val_mse": {
+        "mean": 0.0204,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.02,
+        "std": 0.0
+      }
+    },
+    {
+      "w": 10.0,
+      "val_mse": {
+        "mean": 0.0196,
+        "std": 0.0
+      },
+      "grad_mse": {
+        "mean": 0.018,
+        "std": 0.0
+      }
+    }
+  ],
+  "n_sweep": [
+    {
+      "N": 50,
+      "test_mse": {
+        "mean": 0.0267,
+        "std": 0.0133
+      }
+    },
+    {
+      "N": 100,
+      "test_mse": {
+        "mean": 0.0232,
+        "std": 0.008
+      }
+    },
+    {
+      "N": 200,
+      "test_mse": {
+        "mean": 0.0421,
+        "std": 0.0177
+      }
+    }
+  ],
+  "_note": "Reconstructed from the completed run output in logs/review.log; the N-sweep was truncated at N=200 (N=400/800 single-thread solves did not finish in budget)."
+}

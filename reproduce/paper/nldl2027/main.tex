@@ -1,0 +1,1467 @@
+% !TeX spellcheck = en_US
+% !TeX program=pdflatex
+% !BIB program=biber
+%
+% Meta-LSQ -- NLDL 2027 camera-ready version.
+% Build:  ./build.sh  (clean pdflatex/biber/pdflatex/pdflatex plus the checks)
+% Figures: python3 paper/northern-lights-crc/make_figures.py  (from the repo root)
+%
+% NOTE: do not use \S inside a list environment -- on some TeX Live builds that
+% combination trips pdfTeX's "auto expansion is only possible with scalable
+% fonts" error at shipout.  Sec.~\ref{} is used throughout instead.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Camera-ready: 'final' de-anonymises the paper, drops the line numbers and
+% prints the PMLR volume in the title-page footer. The main text is limited to
+% 9 pages; acknowledgements, LLM disclosure and references do not count, and
+% the appendix (after the references) is unlimited.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[fullpaper,final]{nldl}
+
+% OpenReview submission number.
+\paperID{10}
+\confYear{2027}
+\vol{352}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Math
+\usepackage{mathtools}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+%% Figures and tables
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+% nldl.cls loads microtype with automatic font expansion on. On this TeX Live
+% 2022/Debian install that aborts at shipout ("auto expansion is only possible
+% with scalable fonts"). Not content-dependent -- it reproduces with the tables
+% below removed. Drop this line if your installation has the scalable fonts.
+\microtypesetup{expansion=false}
+
+%% Lists
+\usepackage{enumitem}
+% The default itemize label \textbullet resolves to TS1/cmr, which some TeX
+% installations have only as a bitmap (PK) font -- that embeds a Type 3 font in
+% the PDF, which several venues reject outright. The cmsy bullet is visually
+% identical and always available as Type 1.
+\renewcommand{\labelitemi}{\ensuremath{\bullet}}
+
+%% References
+% Proceedings entries are printed in the conventional short form: venue, year,
+% pages. This was a page-budget measure for the 8-page submission, where the
+% bibliography counted; in the camera ready it does not, and the short form is
+% kept for consistency. Delete both blocks to print entries in full.
+\ExecuteBibliographyOptions{doi=false,url=false,eprint=false,isbn=false}
+\AtEveryBibitem{%
+  \ifentrytype{inproceedings}{%
+    \clearfield{series}%
+    \clearfield{volume}%
+    \clearfield{number}%
+    \clearlist{publisher}%
+    \clearlist{location}%
+  }{}%
+}
+\addbibresource{references.bib}
+
+%% Links
+\usepackage{hyperref}
+\usepackage{url}
+\hypersetup{
+  pdfusetitle,
+  colorlinks,
+  linkcolor = BrickRed,
+  citecolor = NavyBlue,
+  urlcolor  = Magenta!80!black,
+}
+
+%% Shorthands
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+
+% Placeholder for author-supplied text. Renders in red so it cannot ship
+% unnoticed; build.sh counts the remaining instances.
+\newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+
+\theoremstyle{plain}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{definition}
+\newtheorem{observation}{Observation}
+
+\title{Meta-LSQ: A Closed-Form Sobolev Inner Solver for Few-Shot Meta-Learning}
+
+\author[1]{Antonin Sulc\thanks{Corresponding Author.}}
+\affil[1]{\TODO{affiliation}}
+\affil[ ]{\texttt{antonin.sulc@innovatrics.com}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Gradient-based meta-learners such as MAML adapt to a new task by running an inner
+loop of gradient descent and differentiating through it, which makes the inner loop
+iterative, the outer gradient second order, and the number of meta-parameters equal
+to the number of network weights. Meta-LSQ avoids this by freezing the features and
+making adaptation linear. Each task is fitted by one regularised least-squares solve
+over a fixed random Fourier basis, and the same solve can take derivative
+observations alongside the values. Since the derivative of a sinusoid is again a
+sinusoid, the fitted model has closed-form derivatives of any order, and a
+derivative row costs one feature evaluation instead of an autograd graph. What is
+meta-learned is three scalars (bandwidth, ridge and derivative weight). Read as
+kernel ridge regression with derivative observations, each of them has a kernel
+meaning, and in our experiments the learned ridge goes up with value noise and the
+learned derivative weight goes down with derivative noise, as that reading predicts.
+
+On 10-shot sinusoid regression Meta-LSQ reaches a test MSE of $0.019 \pm 0.016$
+after $14$\,s of training. This is $5.5\times$ lower than the largest FOMAML
+baseline we ran ($8500$ weights, $36\times$ the training time), and after only
+$0.5$\,s of training it is already $8.6\times$ lower than MLP-MAML after $50$\,s.
+An exact Gaussian process whose three hyperparameters are shared across tasks and
+meta-learned in the same way gets to $0.026$ with the same budget, so most of the
+improvement over MAML is due to amortising a three-scalar Sobolev kernel; the
+random-feature version is at least as accurate here, and its cost is set by the
+basis size. On real sensor-calibration data Meta-LSQ is less accurate than
+MLP-MAML on three of the four targets, and more accurate than per-task linear fits
+where the calibration curve is nonlinear. Our claims are for smooth,
+low-dimensional few-shot regression, and we also report where the method breaks
+down: extrapolation away from the support under the near-zero ridge, non-smooth
+targets, and the choice of the ridge itself, since the solve nearly interpolates
+the support set and criteria built from the in-sample residual (generalised
+cross-validation, for example) cannot see the extrapolation risk.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=\textwidth]{figures/teaser.pdf}
+\caption{\textbf{Meta-LSQ on one held-out sinusoid task.} \textbf{(a)}~The
+support set gives ten values and, at the same points, ten slopes.
+\textbf{(b)}~Each value becomes a row of $H$ and each slope a row of $\Gamma$; a
+slope row is the value feature shifted by $\pi/2$ and scaled by $W_j$, so it costs
+one sine evaluation (36 of the $N{=}200$ frozen features are shown). One ridge
+solve gives the coefficients. \textbf{(c)}~The fitted $u_N$ and its derivative
+$u_N'$, which is available in closed form; the dashed curves are the true task and
+its derivative. Only $\sigma$, $\mu$ and $w$ are meta-learned, by the outer loop
+shown at the bottom. \textbf{(d)}~Test MSE against training time. Along the
+dotted line the error is fixed and only the time grows; Meta-LSQ-Sobolev after
+$0.5$\,s is below MLP-MAML after $50$\,s (Table~\ref{tab:wallclock}).}
+\label{fig:teaser}
+\end{figure*}
+
+A meta-learner sees many related tasks and extracts something that makes the next
+task solvable from a handful of examples. The most widely used recipe,
+Model-Agnostic Meta-Learning (MAML)~\citep{finn2017maml}, does this with two
+nested optimisations. An inner loop takes $T$ gradient steps on a task's support
+set, giving adapted weights $\theta_\tau = \theta_0 - \eta \sum_{t<T}
+\nabla_\theta \mathcal{L}^s_\tau(\theta_t)$, and an outer loop tunes the
+initialisation $\theta_0$ so that the query loss after adaptation is small. Every
+task fit then costs $T$ forward and backward passes kept on the graph, and the
+outer gradient has to differentiate through those updates, which needs double
+backpropagation. First-order variants~\citep{nichol2018reptile} drop the
+second-order terms, and \citet{jamal2021lazyhessian} shorten the meta-gradient
+graph for long inner loops with a lazy teacher--student scheme. In all of these
+the meta-learned object is still the whole initialisation, so the outer search
+runs over as many dimensions as the network has weights, typically thousands.
+
+If the inner loop is replaced by a convex solver, the iterative fit goes away and
+so does part of the second-order cost. ALPaCA~\citep{harrison2018alpaca} does
+closed-form Bayesian linear regression with a meta-learned prior on top of a
+learned encoder, and was evaluated on the same sinusoid benchmark we use;
+R2D2~\citep{bertinetto2019r2d2} puts ridge regression on a convolutional
+backbone, and MetaOptNet~\citep{lee2019metaoptnet} a convex SVM. The inner solve
+is one-shot and differentiable in all three, but the features still come from a
+deep network that is meta-learned along with it, so the number of meta-parameters
+does not go down.
+
+\paragraph{Approach.}
+We keep the closed-form solve but drop the learned feature extractor. In Meta-LSQ
+each task is fitted by one regularised least-squares solve over a frozen random
+Fourier basis, and only two or three scalars describing that basis are
+meta-learned. Where MAML learns thousands of initial weights so that a few SGD
+steps work across tasks, we learn the length-scale of a fixed basis so that a
+single ridge fit does. Fixing the features costs expressivity, and the method is
+meant for smooth, low-dimensional families that the basis represents well
+(Sec.~\ref{sec:exp-limits} looks at what happens outside that regime).
+
+The solve can also use derivative observations at little cost. A derivative
+constraint is the same feature shifted by a quarter period
+(Fig.~\ref{fig:teaser}b) and is linear in the same coefficients as the value
+constraints, so values and derivatives go into one linear system, which we call
+\emph{Sobolev fitting}. With an MLP, fitting derivatives requires double
+backpropagation; here it only makes the solve larger.
+
+\paragraph{Contributions.}
+\begin{itemize}[leftmargin=*,itemsep=1pt,topsep=2pt]
+\item The method itself (Sec.~\ref{sec:method}): a Sobolev least-squares solve in
+place of the inner loop, and two or three scalars in place of the learned
+initialisation. We differentiate the solve exactly with the implicit function
+theorem, without unrolling or Hessian-vector products, and read it as
+gradient-enhanced kriging to give each scalar a kernel meaning.
+\item An analysis of what the derivative rows contribute
+(Sec.~\ref{sec:mechanism}). At the learned bandwidth, ten derivative rows add
+about three numerically independent directions to the ten from the values and
+improve the conditioning of the design by about two orders of magnitude. Neither
+design identifies the coefficients, but the held-out value and derivative errors of
+the fitted function drop by about a factor of five.
+\item Experiments (Sec.~\ref{sec:experiments}) against a strong FOMAML baseline
+across training budgets and at equal wall-clock time, an MLP-MAML that gets the
+same support gradients, an ALPaCA-style baseline, and gradient-enhanced kriging
+with three kernels (two of them more accurate than Meta-LSQ) and with shared
+meta-learned hyperparameters (slightly less accurate). We also use a real
+sensor-calibration family and describe where the method fails.
+\item A note on choosing the ridge (Sec.~\ref{sec:exp-ridge}). For noiseless
+targets in the span of the basis the in-sample residual goes to zero together with
+the ridge, so criteria computed from it, generalised cross-validation among them,
+pick the smallest ridge however badly the fit extrapolates. The ridge has to come
+from a noise model instead. The learned ridge does follow the noise level, and for
+deployment we give a recipe for a floor.
+\end{itemize}
+
+\section{Background}
+\label{sec:background}
+
+\paragraph{Random Fourier features.}
+Bochner's theorem~\citep{bochner1933} writes a continuous, positive-definite,
+shift-invariant kernel with $k(0){=}1$ as $k(x-x') = \int e^{i \omega^\top (x-x')}
+p(\omega)\,d\omega$ for a probability density $p$, which \citet{rahimi2007rff}
+turned into a finite feature map. In its sine form: draw $W_j \sim p(\omega)$ and
+$b_j \sim \mathcal{U}[0,2\pi)$, and $\phi_j(x) = \sqrt{2/N}\sin(W_j^\top x + b_j)$
+has $\E[\phi(x)^\top\phi(x')] = k(x-x')$. The Gaussian kernel takes
+$p(\omega) = \mathcal{N}(0,\sigma^2 I)$, giving
+\begin{equation}
+\label{eq:rff-basis}
+u_N(x) = \frac{1}{\sqrt{N}} \sum_{j=1}^{N} \beta_j \sin(W_j^\top x + b_j),
+\end{equation}
+with $W_j \sim \mathcal{N}(0,\sigma^2 I_d)$ drawn once and frozen; only
+$\beta \in \R^N$ is ever fitted. Eq.~\eqref{eq:rff-basis} omits the factor
+$\sqrt{2}$, so its feature kernel is $k/2$; this only rescales the ridge in the
+kernel reading of Sec.~\ref{sec:dictionary}. The model $u_N$ is nonlinear in $x$
+but linear in the fitted parameters, which is what makes a closed-form inner loop
+possible.
+
+\paragraph{Closed-form derivatives of the basis.}
+For a multi-index $\alpha \in \mathbb{N}_0^d$,
+\begin{equation}
+\label{eq:cyclic}
+D^\alpha \sin(W_j^\top x + b_j) = \Big(\prod_{k} W_{jk}^{\alpha_k}\Big)
+\Phi_{m}(W_j^\top x + b_j),
+\end{equation}
+where $m = |\alpha| \bmod 4$ and $\Phi_0 = \sin$, $\Phi_1 = \cos$,
+$\Phi_2 = -\sin$, $\Phi_3 = -\cos$. Two consequences follow. Any derivative
+costs one sinusoid evaluation times a scalar prefactor, with no autograd graph,
+and it stays linear in $\beta$, so fitting derivatives is still linear least
+squares. FastLSQ develops this into an operator calculus over
+integral and differential rows~\citep{sulc2026fastlsq}; we use only those two
+facts. The cyclic identity is specific to sinusoids: $\tanh$ differentiates to $\mathrm{sech}^2$,
+which lies outside the span of the value rows.
+
+\paragraph{Derivative supervision and its cost.}
+Sobolev training~\citep{czarnecki2017sobolev} matches a teacher's derivatives as
+well as its values. For a neural network this is expensive, because computing
+$\nabla_x f_\theta$ is already a backward pass, and differentiating the resulting
+loss with respect to $\theta$ means backpropagating through it, which roughly
+doubles the graph depth and the activation memory.
+
+\paragraph{Differentiation through a linear solve.}
+If $\beta(\xi)$ solves a square system $P(\xi)\beta = q(\xi)$, the implicit
+function theorem gives $\partial_\xi \beta = P^{-1}(\partial_\xi q - (\partial_\xi
+P)\beta)$. In our case $P = A^\top\! A + \mu I$ and $q = A^\top t$. Autograd
+evaluates this expression with the factorisation from the forward pass, so nothing
+is unrolled and no second-order graph is built.
+
+\section{Meta-LSQ}
+\label{sec:method}
+
+\paragraph{Scope and assumptions.}
+We assume throughout that \textbf{(A1)} the task family is smooth and roughly
+inside the span of the sinusoidal basis, and \textbf{(A2)} the support values are
+clean or nearly so. When both hold the best ridge is close to zero and the solve is
+almost exact, and this is the setting of our main results. The two assumptions
+also tell us where to expect trouble. With a ridge near zero the fit can take large
+values away from the support points, and once noise is added the learned ridge
+should go up (Sec.~\ref{sec:exp-limits}). The Sobolev variant in addition needs
+derivative observations at the support points. Analytic generators, simulators and
+physical models usually provide them with the values (as a sensitivity, a force or
+a residual); when no derivatives are available we use the value-only variant
+($w{=}0$), as we do on the real data (Sec.~\ref{sec:exp-real}).
+
+\subsection{Adaptation as a Single Least-Squares Solve}
+\label{sec:sobolev-solve}
+
+Let $X \in \R^{M\times d}$ be the support points with values $y \in \R^M$ and
+derivatives $G \in \R^{M\times d}$, and let $W \in \R^{d\times N}$, $b \in \R^N$ be
+the frozen basis parameters scaled by the bandwidth. Build one row per value and
+one per partial derivative,
+\begin{align}
+H_{ij} &= \tfrac{1}{\sqrt{N}} \sin(W_{:j}^\top X_{i:} + b_j), \\
+(\Gamma_k)_{ij} &= \tfrac{1}{\sqrt{N}} W_{kj} \cos(W_{:j}^\top X_{i:} + b_j),
+\end{align}
+where the second line is~\eqref{eq:cyclic} with $\alpha = e_k$. Writing
+$[\,\cdot\,;\cdot\,]$ for vertical concatenation and weighting the derivative rows
+by a scalar $w$, stack them into
+$A(\sigma,w) = [\,H;\sqrt{w}\Gamma_1;\dots;\sqrt{w}\Gamma_d\,]$ and
+$t(w) = [\,y;\sqrt{w}G_{:,1};\dots;\sqrt{w}G_{:,d}\,]$. Adaptation is then one
+ridge solve,
+\begin{align}
+\label{eq:beta-star}
+\beta^\ast(\sigma,\mu,w)
+  &= \argmin_\beta \|A\beta - t\|_2^2 + \mu\|\beta\|_2^2 \nonumber\\
+  &= (A^\top\! A + \mu I)^{-1} A^\top t ,
+\end{align}
+and $w = 0$ gives plain ridge regression on the values. Since value and derivative
+constraints are both linear in $\beta$, fitting them together is a single
+least-squares problem with $M(d{+}1)$ rows.
+
+\subsection{Interpretation as Gradient-Enhanced Kriging}
+\label{sec:dictionary}
+
+With $w{=}0$, Eq.~\eqref{eq:beta-star} is an $N$-feature approximation to kernel
+ridge regression with an RBF kernel of inverse length-scale $\sigma$; with $w>0$
+it is gradient-enhanced kriging (GEK), kernel ridge regression with derivative
+observations~\citep{laurent2019gek}. Each scalar then has a kernel meaning. The
+bandwidth $\sigma$ is the inverse length-scale. Under a Gaussian prior $\beta \sim
+\mathcal{N}(0,\sigma_p^2 I)$ and Gaussian noise of variance $\sigma_y^2$ on values
+and $\sigma_g^2$ on derivatives, the stacked objective~\eqref{eq:beta-star} is
+proportional to the negative log-posterior with $\mu = \sigma_y^2/\sigma_p^2$ and
+$w = \sigma_y^2/\sigma_g^2$ (App.~\ref{app:posterior}). Because
+Eq.~\eqref{eq:rff-basis} omits the factor $\sqrt{2}$, the induced GP has signal
+variance $\sigma_p^2/2$.
+
+In other words, Meta-LSQ picks one Sobolev kernel (a length-scale, a noise ratio
+and a derivative weight) for the whole family, and for $N\to\infty$ the solve
+tends to the posterior mean of a GP with derivative observations. This reading
+makes predictions about how each scalar should change with the data, which we test
+in Secs.~\ref{sec:exp-mechanism} and~\ref{sec:exp-limits}. It also gives a
+posterior, $\beta \mid \mathcal{D} \sim \mathcal{N}(\beta^\ast, \sigma_y^2
+(A^\top\! A + \mu I)^{-1})$, under which any linear functional of $\beta$ (each
+closed-form derivative included) is Gaussian and costs one $\mathcal{O}(N^2)$
+product with the cached factor. How wide it is depends on how $\sigma_y^2$ is
+estimated, and with a residual plug-in estimate the nominal $90\%$ intervals cover
+only $31$--$64\%$, so we do not treat the posterior as calibrated
+(App.~\ref{app:calib}).
+
+\subsection{The Outer Objective}
+\label{sec:outer-loop}
+
+Each task supplies $(X_\tau, y_\tau, G_\tau)$ for support and
+$(X^q_\tau, y^q_\tau)$ for query. The outer objective is the query error after
+adaptation,
+\begin{equation}
+\label{eq:meta-objective}
+\min_{\sigma,\mu,w > 0}\;\;
+\E_{\tau}\big[\|H^q_\tau(\sigma)\,\beta^\ast_\tau(\sigma,\mu,w) - y^q_\tau\|_2^2\big],
+\end{equation}
+in which only the three positive scalars are learned (two for the value-only
+variant, which fixes $w{=}0$). The frozen draw $(\hat W, b)$ and the number of
+features $N$ are set once at initialisation. $N$ plays a role similar to the width
+of an MLP, and the test error hardly depends on it
+(Sec.~\ref{sec:exp-mechanism}). We learn the logarithms of the scalars, which keeps
+them positive, rescale the frozen draw as $W = \sigma\hat W$ at every outer step,
+and use Adam (Algorithm~\ref{alg:meta-lsq}, App.~\ref{app:alg}).
+
+\paragraph{Cost of an outer step.}
+Assembling $A_i,t_i$ is $\mathcal{O}(MNd)$ and the solve is
+$\mathcal{O}(M(d{+}1)N^2 + N^3)$. On the sinusoid benchmark ($M{=}10$, $d{=}1$,
+$N{=}200$, $B{=}4$) one inner solve takes $0.81$\,ms on a single CPU thread. A
+full Meta-LSQ outer step at this size ($9.6$\,ms) is actually slower than an
+MLP-MAML step ($8.1$\,ms), since both are dominated by Python overhead, and the
+shorter training time in Table~\ref{tab:maml} comes from Meta-LSQ needing four
+times fewer steps to reach a lower loss. For larger problems there is still no
+unrolling or second-order graph, and a derivative row costs one sinusoid
+evaluation per feature.
+
+\subsection{Rank and Conditioning of the Stacked Design}
+\label{sec:mechanism}
+
+Adding the derivative rows increases the number of rows from $M$ to $M(d{+}1)$,
+but how many of them are useful depends on the spectrum of the design.
+
+\begin{observation}[Algebraic rank versus effective rank]
+\label{obs:rank}
+The Gram matrix of the stacked design is $A^\top\! A = H^\top\! H + w\sum_k
+\Gamma_k^\top \Gamma_k$. For distinct support points and $M(d{+}1) \leq N$ the
+stacked rows are generically linearly independent, so the algebraic rank can reach
+$M(d{+}1)$ instead of $M$. The effective rank (the number of singular values above
+a relative tolerance) depends on how fast the random-feature spectrum decays at the
+chosen bandwidth, and may be much lower.
+\end{observation}
+
+We measured both at the 10-shot operating point ($M{=}10$, $N{=}200$, 200 random
+draws of basis and support points, in float64; Fig.~\ref{fig:mechanism}c). At the
+learned bandwidth $\sigma{=}0.65$ the value block has an effective rank of $9.9$
+(out of 10) and adding the derivative rows brings it to $13.1$ out of 20 ($12.4$ at
+$\sigma{=}0.56$ and $15.2$ at $\sigma{=}1$, with a relative tolerance of $10^{-6}$).
+Only for $\sigma \geq 3$ does it come close to 20. The derivative rows also make
+the design better conditioned, with the median ratio of the largest to the tenth
+singular value going from $10^{4.7}$ down to $10^{2.3}$ at $\sigma{=}0.65$. With 20
+rows and 200 unknowns neither design can identify the coefficients, and for an
+in-span random target the error $\|\hat\beta - \beta^{\text{true}}\|$ is about as
+large as $\|\beta^{\text{true}}\|$ in both cases. The fitted function, on the
+other hand, is recovered much better (Fig.~\ref{fig:mechanism}d). At
+$\sigma{=}0.65$ and $\mu{=}10^{-5}$ the stacked fit brings the held-out relative
+RMSE of the values from $0.091$ down to $0.017$, and of the derivatives from
+$0.17$ to $0.037$. The improvement gets smaller as $\sigma$ grows, and at
+$\sigma{=}2$ it is $1.8\times$ for the values.
+
+Every derivative order is a linear functional of the same coefficients, which ties
+the errors at different orders together:
+
+\begin{proposition}[Error propagation across orders]
+\label{prop:coupling}
+Let $u$ lie in the span of the basis, with coefficients $\beta^{\text{true}}$. Then
+$D^\alpha u_N(x_\star) = c^{(\alpha)}(x_\star)^\top\beta^\ast$, so $|D^\alpha
+u_N(x_\star) - D^\alpha u(x_\star)| \leq \|c^{(\alpha)}(x_\star)\|_2\,\|\beta^\ast -
+\beta^{\text{true}}\|_2$, where $\|c^{(\alpha)}\|_2$ grows as
+$\sigma^{|\alpha|}$ times a factor that increases with $|\alpha|$.
+\end{proposition}
+
+Since the coefficients are not identified here, this bound is loose. It says why
+the errors at different orders go up and down together, not how large they are. In
+an MLP there is no such link, and lowering the gradient error does not have to
+lower the Hessian error, because the network can satisfy the gradient constraint by
+moving capacity elsewhere.
+
+\section{Experiments}
+\label{sec:experiments}
+
+All experiments run single-threaded on CPU. Since wall-clock time depends on the
+hardware and on the machine load, we only compare times within one experiment (the
+rows of Table~\ref{tab:maml} were run on two machines, so their times are only
+indicative). Unless we say otherwise, we report the mean\,$\pm$\,sample std over 5
+seeds, where a seed redraws the frozen basis, the stream of training tasks and the
+test tasks, and the outer loop is always started at $\sigma{=}1$, $\mu{=}10^{-4}$,
+$w{=}1$. A few numbers come from separate runs of the same configuration and so
+differ in the last digit, e.g.\ $0.060$ and $0.059$ for value-only Meta-LSQ, or
+$10.9$ and $11$ for the learned $w$.
+
+\subsection{Accuracy and Training Cost}
+\label{sec:exp-works}
+
+\paragraph{Setup.} We use the usual sinusoid family $y = a\sin(x+\phi)$ with
+$a\sim\mathcal{U}[0.1,5]$, $\phi\sim\mathcal{U}[0,\pi]$ and $x \in [-5,5]$, with
+$K{=}10$ support and $K_q{=}50$ query points at test time and 200 held-out tasks.
+Our \emph{standard MLP-MAML} has two hidden layers of 40 ReLU units and takes one
+inner SGD step with $\eta{=}10^{-2}$; it is trained with Adam at $10^{-3}$ for 8000
+iterations. For the \emph{strong MLP-MAML} we use three hidden layers of 64 ReLU
+units, 5 inner steps at $5\!\times\!10^{-3}$, gradient clipping at norm 10 and
+FOMAML, and train it for 10k, 30k and 60k iterations. \emph{Meta-LSQ} has
+$N{=}200$ frozen features and is trained for 2000 iterations with Adam at
+$5\!\times\!10^{-3}$, on batches of 4 tasks with 10 query points each. The Sobolev
+variant is also given the analytic support gradients $g_i = a\cos(x_i+\phi)$.
+
+\begin{table}[tb]
+\centering
+\caption{10-shot sinusoid regression, 200 test tasks; meta-iterations in
+parentheses. Meta-LSQ and standard-MAML rows are mean\,$\pm$\,std over 5 seeds,
+ALPaCA-style and MAML\,$+$\,Sob.\ over 3; the strong FOMAML frontier is one run per
+budget. ``Learn.'' counts learnable parameters; Meta-LSQ also carries $N{=}200$
+frozen features. ``ms/t'' is the per-task adaptation and prediction time, median
+over seeds. $^\ddagger$Fits its kernel per task by marginal likelihood, so its cost
+is per task rather than in training. $^\ast$Shared, meta-learned kernel
+hyperparameters under Meta-LSQ's protocol (5 seeds; App.~\ref{app:gp}), not
+timed under comparable conditions. Both GEK rows use an RBF kernel.}
+\label{tab:maml}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrrl}
+\toprule
+method & learn. & train\,s & ms/t & test MSE \\
+\midrule
+MAML std.\ (8k)       & 1\,761 & 51  & $0.5$ & $0.70 \pm 0.13$ \\
+MAML strong (10k)     & 8\,513 & 130 & $1.8$ & $0.328$ \\
+\quad'' (30k)         &        & 399 &        & $0.144$ \\
+\quad'' (60k)         &        & 512 &        & $0.104$ \\
+MAML $+$ Sob.\ (8k)   & 1\,761 & 78  & $1.0$ & $0.216 \pm 0.031$ \\
+ALPaCA-style (8k)     & 1\,721 & 12  & n/a   & $0.026 \pm 0.017$ \\
+GEK, per task$^\ddagger$ & n/a & n/a & $2.9$ & $0.013 \pm 0.008$ \\
+GEK, shared (2k)$^\ast$ & 3 & n/a & n/a & $0.026 \pm 0.014$ \\
+\midrule
+Meta-LSQ $w{=}0$ (2k) & 2      & 11  & $0.4$ & $0.060 \pm 0.043$ \\
+Meta-LSQ-Sob.\ (2k)   & 3      & 14  & $0.9$ & $\mathbf{0.019 \pm 0.016}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results.}
+Meta-LSQ-Sobolev reaches $0.019 \pm 0.016$ (Table~\ref{tab:maml}). Against the
+strong baseline the ratio depends on how long the baseline is trained, from
+$17\times$ at 10k iterations to $7.6\times$ at 30k and $5.5\times$ at 60k, and at
+60k its error was still going down. The $5.5\times$ is against a FOMAML with
+$8500$ weights trained $36\times$ longer, and that $36\times$ understates its cost,
+since the 60k run happened to take $8.5$\,ms per step while the 10k and 30k runs
+took $13$\,ms. The $37\times$ against the standard 8k baseline is a
+comparison with an under-trained model. Meta-LSQ also has 3 meta-parameters instead
+of about 8500. After 2000 steps the learned scalars are similar for different basis
+draws ($\sigma = 0.65 \pm 0.09$, $\mu^\ast \approx 10^{-5}$, $w = 10.9 \pm 3.4$
+over 3 seeds), although the derivative weight has not converged yet. In longer runs
+it keeps increasing, up to $360$--$2300$ after $8\!\times\!10^4$ steps, while the
+seed-averaged test MSE stays at or below its 2000-step value.
+
+\paragraph{Controls for the derivative information.}
+Since Meta-LSQ-Sobolev gets support derivatives and MLP-MAML does not, we ran three
+controls. Without derivatives ($w{=}0$) Meta-LSQ is still $12\times$ below the
+standard baseline. We also reimplemented an ALPaCA-style baseline, with a tanh
+encoder of two hidden layers of 40 units and a closed-form Bayesian last layer with
+a learned isotropic prior, trained on the query MSE. It sees only values, learns
+$570\times$ more parameters than Meta-LSQ, and is about as accurate in class as
+Meta-LSQ-Sobolev ($0.026$ against $0.023$ on matched seeds). It is trained for 8000
+steps, and when value-only Meta-LSQ is trained for the same 8000 steps on the same
+seeds (in float64) it reaches $0.027$ and is lower on two of the three, so with
+values alone the frozen basis does about as well as this learned encoder (in
+float32 the same run gives $0.041$, and after the 2000 steps of
+Table~\ref{tab:maml}, $0.060$). Finally, we gave MLP-MAML the same derivatives
+through a Sobolev inner loss with a smooth (SiLU) activation, which needs double
+backpropagation. Training then takes $1.9\times$ longer than without derivatives
+and the MSE goes from $0.716 \pm 0.073$ to $0.216 \pm 0.031$ at $\lambda{=}1$, but
+Meta-LSQ-Sobolev is still $11\times$ lower with a fifth of the training time. The
+derivatives help both methods, then, but they are not the reason for the gap.
+
+\paragraph{Comparison with gradient-enhanced kriging.}
+The closest mathematical comparator~\citep{laurent2019gek} is a GP given the same
+support values and derivatives. Fitting the RBF length-scale per task by marginal
+likelihood with the signal variance profiled out, rather than fixed at one, takes
+this kernel from $0.079$ to $0.013$, below Meta-LSQ-Sobolev
+(Table~\ref{tab:maml}). A periodic kernel does not do better ($0.025$): with a free
+period it is a looser hypothesis space than this family needs. A single
+spectral-mixture component does much better. As its bandwidth vanishes its sample
+paths are exactly $A\sin(\omega x + \phi)$, so its prior encodes the task family
+and marginal likelihood has to find only one frequency, giving
+$3\!\times\!10^{-10}$ (App.~\ref{app:gp}). A prior matched to the family can
+therefore solve this benchmark almost exactly, and query MSE on it mostly ranks
+priors. Among comparators not given the family, $0.013$ against $0.019$ is within
+seed spread. None of these per-task fits is amortised: each runs a
+marginal-likelihood search at $1$--$100$\,ms per task on a system of size
+$M(d{+}1)$, whose cost grows as $\mathcal{O}(M^3(d{+}1)^3)$, whereas Meta-LSQ
+learns one spectrum and adapts by one sub-millisecond solve whose cost is fixed by
+$N$.
+
+\paragraph{An amortised exact kernel.}
+The random features are not what makes amortisation work. We also meta-learned an
+exact GEK whose length-scale, value noise and derivative noise are shared across
+tasks, with the same query loss, initialisation, learning rate and budget, and kept
+them fixed at test time. It reaches $0.026 \pm 0.014$ (Table~\ref{tab:maml}), far
+below every MAML variant. Meta-LSQ-Sobolev is lower on 4 of 5 paired seeds at 2000
+steps and on all 5 at 6000 steps ($0.0043$ against $0.013$), and with values only
+the pairs are $0.059$ against $0.075$ and $0.034$ against $0.034$
+(App.~\ref{app:gp}). We conclude that most of the improvement over MAML comes from
+sharing three kernel hyperparameters across tasks and adapting with a closed-form
+solve, and that on this benchmark the random-feature version is at least as
+accurate as the exact kernel. Its cost is set by $N$ and not by the $M(d{+}1)$
+observations, and because its derivatives of every order are available in closed
+form, operator and integral rows are built in the same way as derivative rows,
+while an exact kernel needs a new kernel derivative or kernel integral for each one
+(Sec.~\ref{sec:exp-mechanism}).
+
+\begin{table}[tb]
+\centering
+\caption{Test MSE after a fixed single-thread wall-clock budget (mean\,$\pm$\,population
+std over 3 seeds, all evaluated on the same 200 test tasks). The floored row
+applies the ridge floor $\mu \geq 10^{-2}$ of Sec.~\ref{sec:exp-limits} during
+meta-training.}
+\label{tab:wallclock}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrr}
+\toprule
+method & $0.5$\,s & $5$\,s & $50$\,s \\
+\midrule
+MLP-MAML           & $3.50$\,\tiny$\pm.06$   & $2.07$\,\tiny$\pm.05$   & $0.61$\,\tiny$\pm.06$ \\
+Meta-LSQ $w{=}0$   & $.304$\,\tiny$\pm.076$  & $.173$\,\tiny$\pm.106$  & $.045$\,\tiny$\pm.009$ \\
+Meta-LSQ-Sob.\     & $\mathbf{.071}$\,\tiny$\pm.017$ & $\mathbf{.034}$\,\tiny$\pm.018$ & $\mathbf{.0076}$\,\tiny$\pm.0011$ \\
+\quad $+$ floor    & $.144$\,\tiny$\pm.034$  & $.085$\,\tiny$\pm.033$  & $.020$\,\tiny$\pm.009$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Matched wall-clock budgets.}
+Iterations are not comparable units of work, so we also fix the wall-clock
+budget and report the test MSE reached within it (Table~\ref{tab:wallclock}).
+After $0.5$\,s Meta-LSQ-Sobolev reaches $0.071$, $8.6\times$ below MLP-MAML after
+$50$\,s ($0.61$). Flooring the ridge costs $2$--$2.7\times$ in class here; this
+in-span, noiseless benchmark does not need the floor's tail control, but the
+out-of-class families of Sec.~\ref{sec:exp-limits} do. The floor is meant for deployment rather than
+training: with $\mu$ pinned, the learned $w$ exceeds $10^4$ within $10^4$
+steps, and one of three floored runs diverged by $2\!\times\!10^4$ steps
+(another by $8\!\times\!10^4$). Within $50$\,s the floored run reaches about
+$1.2\!\times\!10^4$ steps.
+
+\subsection{Real Data: Sensor Calibration under Drift}
+\label{sec:exp-real}
+
+\paragraph{Setup.} The UCI Air Quality data~\citep{devito2008airquality} pair a
+metal-oxide sensor array with a reference analyser over one year. We treat each
+ISO week as a task, in which the calibration curve from sensor response to true
+concentration has to be recovered from $K{=}10$ support points and is scored on
+$50$ query points. Weeks are split chronologically (60/40), so every test week
+comes after all training weeks and the sensor has drifted in between, and we
+standardise with statistics from the meta-training weeks only. All four
+sensor/reference pairs with enough weeks (53--56) are used. There are no measured
+derivatives in this data, so Meta-LSQ is run value-only with two learned scalars,
+and the ridge floor of Sec.~\ref{sec:exp-limits} is set to ten times the learned
+ridge.
+
+\begin{table}[tb]
+\centering
+\caption{Gas-sensor calibration: mean normalised query MSE on held-out, later
+weeks (5 seeds, identical support/query draws for every method). ``GP'' is the
+exact RBF GP with shared, meta-learned hyperparameters; ``lin.'' and ``quad.''
+are per-task least-squares fits. Per-seed spreads and the ridge sweep are in
+App.~\ref{app:real}.}
+\label{tab:real}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{lrrrrr}
+\toprule
+target & Meta-LSQ & GP & MAML & lin. & quad. \\
+\midrule
+CO      & $0.32$   & $0.30$   & $\mathbf{0.28}$ & $0.31$ & $0.40$ \\
+NO$_2$  & $0.86$   & $\mathbf{0.84}$ & $3.86$   & $0.90$ & $1.74$ \\
+benzene & $.0037$  & $.0038$  & $\mathbf{.00015}$ & $.048$ & $.0003$ \\
+NO$_x$  & $0.85$   & $0.81$   & $\mathbf{0.72}$ & $1.34$ & $2.28$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Results.} Meta-LSQ is not the most accurate method here
+(Table~\ref{tab:real}). MLP-MAML is more accurate on three targets and fails on
+NO$_2$. Against the per-task straight line a practitioner would fit, Meta-LSQ is
+equal on the noisy, near-linear CO and NO$_2$ targets and better where the curve
+is nonlinear: $1.6\times$ on NO$_x$ and $13\times$ on benzene. The benzene curve
+is almost deterministic (a degree-5 polynomial reaches $R^2 = 0.99998$ on the
+training weeks), and there a per-task quadratic and MAML are more accurate still.
+The shared-hyperparameter GP is within $8\%$ of Meta-LSQ on every target. As
+Sec.~\ref{sec:dictionary} predicts, the learned ridge follows the noise level
+without any floor: it is two orders of magnitude lower on benzene
+($5\!\times\!10^{-6}$) than on the three noisy targets ($4$--$8\!\times\!10^{-4}$).
+We also tried estimating slopes by finite differences of the ten support values
+and entering them as derivative rows with a learned weight. This was worse than
+using the values alone on all four targets, even though the learned weight went
+down to $0.35$--$0.76$, so such estimates are no substitute for measured
+derivatives.
+
+\subsection{The Contribution of the Derivative Rows}
+\label{sec:exp-mechanism}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=\textwidth]{figures/mechanism.pdf}
+\caption{Effect of the derivative rows. \textbf{(a)}~On held-out tasks they lower
+query value, gradient and Hessian error (5 seeds), though nothing above first order
+is supervised. \textbf{(b)}~Meta-training with $w$ held fixed: mean value and
+gradient error fall as $w$ grows (3 seeds). \textbf{(c)}~Effective rank at the
+10-shot support set (200 draws): the derivative rows add about three directions at
+the learned bandwidth (shaded) and approach $2K$ only at large $\sigma$
+(Observation~\ref{obs:rank}). \textbf{(d)}~Held-out relative RMSE of an in-span
+random target, values-only against stacked fit ($\mu{=}10^{-5}$, mean over 200
+draws).}
+\label{fig:mechanism}
+\end{figure*}
+
+Figure~\ref{fig:mechanism} repeats the analysis of Sec.~\ref{sec:mechanism} for the
+meta-learned solve on held-out tasks. With derivative rows all three query errors
+go down, the value error from $0.059$ to $0.019$, the gradient error from $0.067$ to
+$0.017$ and the Hessian error from $0.087$ to $0.019$ (5 seeds), so the Hessian
+improves $4.7\times$ even though nothing above first order is supervised. When we
+meta-train with $w$ held fixed at each value in $\{0,0.1,0.3,1,3,10\}$ (learning
+only $\sigma$ and $\mu$, 3 seeds), the mean query error decreases with $w$, from
+$0.073$ to $0.023$ for values and from $0.080$ to $0.016$ for gradients, although
+not on every seed. The test MSE barely changes over $N \in \{50,100,200\}$
+($0.024$, $0.021$, $0.023$; 3 seeds), so we did not tune $N$. Adding a Laplacian
+row did not help consistently; on a Gaussian-mixture log-density fit it moved the
+value error from $4.4$ to $4.6\!\times\!10^{-3}$ at $d{=}8$ and from $3.8$ to
+$3.4\!\times\!10^{-3}$ at $d{=}4$ (3 seeds).
+
+\paragraph{Predictions of the kernel interpretation.}
+Section~\ref{sec:dictionary} gives $w = \sigma_y^2/\sigma_g^2$, so noisier
+derivatives should lower $w$. With support derivatives corrupted at noise level
+$\epsilon_g$, and values and query clean, the learned $w$ drops from $10.9$ to
+$0.29$ at $\epsilon_g{=}0.1$ and keeps falling, while clean-query error rises from
+$0.023$ to $0.21$ at $\epsilon_g{=}0.5$ (3 seeds). Missing derivatives should not
+lower $w$, and indeed, if only a fraction $p$ of the support points has a clean
+derivative row, $w$ stays between $3.8$ and $4.9$ for $p \in \{0.25,0.5,1\}$
+(3 seeds; these runs use a shorter 1200-step protocol, in which the value with all
+derivatives present is $4.6$; App.~\ref{app:wmodel}).
+
+\paragraph{Operator and integral rows.}
+Because every derivative of the fitted model is again a shifted and rescaled
+sinusoid, rows for differential operators and integrals can be built in the same
+way as derivative rows. We tried this on two families. For 1-D Helmholtz problems
+$-u''+k^2u=f$ with $k\sim\mathcal{U}[1,10]$ the inner solve becomes a collocation
+system, and the outer loop does not need labels at all, since $(\sigma,\mu)$ are
+learned from the equation residual at held-out collocation points. Measured against
+the exact solution, the shared pair gives a median RMS error of
+$1.8\!\times\!10^{-7}$ over 5 seeds, compared with $8.0\!\times\!10^{-7}$ for
+choosing the bandwidth per task with the same residual criterion, which takes eight
+solves per task instead of one. The shared pair wins on every seed because its
+learned ridge is smaller; if per-task selection is given the same ridge, it is more
+accurate on four of the five seeds, by up to $5\times$ (App.~\ref{app:operator}).
+For a Volterra integro-differential family
+$u'+\lambda\!\int_0^x\!u=f$ the same differentiable solve recovers the memory
+strength $\lambda$ from 60 noisy observations of $u$, by gradient descent through
+the solve, to within $4\%$ under $5\%$ noise (one seed; App.~\ref{app:operator}).
+
+\subsection{Out-of-Class Transfer and Failure Modes}
+\label{sec:exp-limits}
+
+The sinusoid family sits inside the span of the basis by construction, so the
+numbers above are a best case. We meta-train on sinusoids and test on two
+families the method was never shown: \textbf{tanh}, $y = a\tanh(b(x-\phi))$, smooth
+but out of span, and \textbf{triangle}, $y = a\,\mathrm{tri}((x-\phi)/T)$,
+non-smooth and periodic with an arbitrary period.
+
+\begin{table}[tb]
+\centering
+\caption{Out-of-class transfer after meta-training on sinusoids alone: per-task
+query MSE as mean and median (200 test tasks per seed; 5 seeds, except
+the $t_2$ column, 3). Rare blowups under the near-zero ridge dominate the mean and
+make it vary strongly across seeds; the median is more representative. The last three
+column pairs are Meta-LSQ-Sobolev: tuned ridge, ridge floor, floor plus $t_2$; the
+floor is applied at test time only.}
+\label{tab:ooc}
+\footnotesize
+\setlength{\tabcolsep}{1.75pt}
+\begin{tabular}{lrrrrrrrr}
+\toprule
+& \multicolumn{2}{c}{MLP-MAML}
+& \multicolumn{2}{c}{$\mu^\ast$}
+& \multicolumn{2}{c}{$\mu\!\geq\!10^{-2}$}
+& \multicolumn{2}{c}{$t_2$ freq.} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}
+family & mean & med & mean & med & mean & med & mean & med \\
+\midrule
+sin      & $0.70$ & $0.47$ & $\mathbf{.019}$ & $\mathbf{3}$e-5 & $.056$ & $1.7$e-3 & $0.28$ & $.044$ \\
+tanh     & $6.0$ & $4.6$ & $45$ & $0.11$ & $0.56$ & $.055$ & $\mathbf{0.18}$ & $\mathbf{.037}$ \\
+triangle & $\mathbf{4.0}$ & $3.2$ & $18000$ & $32$ & $63$ & $9.2$ & $14$ & $\mathbf{3.0}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\emph{Mean and median.} On the support points the solve is almost exact, and what
+it does between and beyond them is controlled by the ridge, which is close to zero
+after meta-training ($\mu^\ast \approx 10^{-5}$, as expected under (A1)--(A2)).
+For some unfamiliar support configurations the fit therefore shoots off to very
+large values away from the data. These blowups are rare and inflate the mean much
+more than the median; by the median, Meta-LSQ-Sobolev is already below MLP-MAML on
+tanh ($0.11$ against $4.6$).
+
+\emph{The ridge floor.} With a floor of $\mu \geq 10^{-2}$ most of the
+extrapolation disappears, and in class the error only goes from $0.019$ to $0.056$
+(still $12\times$ below MLP-MAML). Meta-LSQ-Sobolev is then $11\times$ below
+MLP-MAML on the tanh mean and $83\times$ on its median, but $16\times$ above it on
+the triangle mean. Solving the same systems with a stabilised Tikhonov solver
+changes the test MSE by less than $1\%$, which tells us the blowups are
+extrapolation and not round-off. In effect the ridge controls the tail. Over 600
+pooled triangle tasks, raising $\mu$ to $10^{-1}$ lowers the p99 by three orders
+of magnitude and the share of the mean due to the worst $1\%$ of tasks from $76\%$
+to $15\%$, and the median improves as well (App.~\ref{app:tail}).
+
+\paragraph{The ridge under noise.}
+All the benchmarks so far are noiseless, which is why the learned ridge ends up
+near zero and the floor has to be set by hand. We therefore added Gaussian noise of
+std $\epsilon$ to the support values (leaving derivatives and query targets clean)
+and meta-trained again, for 8000 steps. At $\epsilon{=}0.5$ the learned $\mu^\ast$
+goes up from $1.9\!\times\!10^{-6}$ to $1.2\!\times\!10^{-3}$ and the learned $w$
+from $94$ to $320$--$370$, and on each of the 3 seeds $w$ is higher with noise than
+without (App.~\ref{app:wmodel}). Neither scalar has fully converged after 8000
+steps, so these are values at a fixed budget. Both move the way the kernel reading
+says they should, since noisier values mean a larger $\sigma_y^2$ and hence larger
+$\mu = \sigma_y^2/\sigma_p^2$ and $w = \sigma_y^2/\sigma_g^2$. Seen this way, a
+floor on the ridge is an assumption that the support values contain some noise.
+At every noise level Meta-LSQ-Sobolev stays below MLP-MAML ($0.0049$--$0.055$
+against about $0.65$, both after 8000 steps).
+
+\paragraph{Dimension.}
+For a Gaussian-mixture log-density, the value error is at most
+$6\!\times\!10^{-2}$ all the way up to $d{=}64$, but at $d{=}64$ the gradient and
+Hessian errors are $0.89$ and $0.96$ (one seed; App.~\ref{app:gmm}).
+
+\paragraph{A deployment recipe for the floor.}
+One fixed floor does not work for targets with different noise levels. On the
+three noisy real targets of Sec.~\ref{sec:exp-real} it reduces the mean error by
+$12$--$18\%$ and the error of the worst held-out week by $1.8$--$3.4\times$, while
+on the almost noiseless benzene target it makes the error $40\times$ larger than
+with the learned ridge. Setting the floor relative to the learned ridge instead,
+$\mu = c\,\mu^\ast$ with $c \in [10, 30]$, keeps the gains on the noisy targets
+and costs benzene a factor of $2.9$--$5.2$ rather than $40$ (App.~\ref{app:real}).
+We picked $c$ after looking at the held-out weeks, so this should be read as a
+recommendation that still needs validating. Nor does it make the absolute floor of
+Table~\ref{tab:ooc} unnecessary. On the noiseless synthetic families it would give
+a floor of about $10^{-4}$, which is below the $10^{-3}$ that still leaves a heavy
+triangle tail (App.~\ref{app:tail}), because there the risk comes from model
+mismatch and not from noise.
+
+\paragraph{Anisotropy.}
+One scalar bandwidth has to serve every coordinate. With $W = S\hat W$ the
+induced spectral covariance $SS^\top$ is isotropic for scalar $S$, axis-aligned for
+diagonal $S$ and unrestricted for lower-triangular $S$. On a 2-D family $y =
+a\sin(\omega_1 x_1 + \omega_2 x_2 + \phi)$ with $\omega_1 \sim \mathcal{U}[0.5,1.5]$
+and $\omega_2 \sim \mathcal{U}[3,5]$, a diagonal $S$ is $3.9\times$ better than a
+scalar and a triangular $S$ a further $1.8\times$ better than the diagonal, on 5
+of 5 paired seeds each (Fig.~\ref{fig:regime}b). The solve stays closed-form.
+
+\paragraph{Frequency distribution.}
+Non-smoothness is the main limitation of the basis. Changing the feature
+nonlinearity would break the cyclic identity, but changing the frequency
+distribution does not: a Student-$t$ or Laplace draw gives rougher sample paths
+while keeping sine features, so derivative rows stay closed-form. In a separate
+3-seed run with the ridge floor, a $t_2$ draw cuts the triangle median from $7.99$
+to $2.97$, close to MLP-MAML's $3.15$ on the same seeds, and also improves tanh
+($0.061\to0.037$). It costs accuracy in class, where the median rises from
+$0.0015$ to $0.044$ (Fig.~\ref{fig:regime}c). The floor column of
+Table~\ref{tab:ooc} comes from the 5-seed run, hence its slightly different
+values.
+
+\subsection{Selecting the Ridge}
+\label{sec:exp-ridge}
+
+The floor of Sec.~\ref{sec:exp-limits} is a constant set by hand, and an obvious
+question is whether the ridge could be chosen from the data instead. We tried
+generalised cross-validation (GCV) and leave-out cross-validation.
+
+\begin{observation}[In-sample criteria at a vanishing ridge]
+\label{obs:ridge}
+Let the stacked design $A$ have $n < N$ rows and full row rank, and let the
+support targets $t$ be noiseless. With the thin SVD $A = U\,\mathrm{diag}(s)\,
+V^\top$, $c = U^\top t$ and $\rho_i = \mu/(s_i^2+\mu)$, both the in-sample
+residual $\sum_i \rho_i^2 c_i^2$ and the residual degrees of freedom $\sum_i
+\rho_i$ tend to zero as $\mu \to 0$, i.e.\ in the limit the fit interpolates the
+support no matter what it does away from it. Any criterion that depends only on
+these two quantities is then blind to extrapolation risk as $\mu \to 0$; for
+generalised cross-validation, $n\sum_i \rho_i^2 c_i^2/(\sum_i \rho_i)^2$ goes to the
+finite value $n\sum_i c_i^2 s_i^{-4}/(\sum_i s_i^{-2})^2$.
+\end{observation}
+
+In our experiments GCV chose the smallest available ridge on $999$ of $1000$
+in-class tasks, and its in-class mean was $2033$, against less than $0.06$ for
+every other policy. Leave-out cross-validation does not use the in-sample residual,
+but with a single fold of 3 held-out support points it rarely sees a blowup coming.
+It does as well as the floor on typical tasks and misses the tail
+(App.~\ref{app:tail}). As a sanity check we ran the same GCV code on an
+ill-conditioned overdetermined problem, where there are residual degrees of
+freedom, and there it recovers $86$--$95\%$ of the gain between no ridge and the
+oracle ridge. The failure is therefore a property of the underdetermined, noiseless
+regime and not of our implementation. In that regime the ridge has to come from a
+noise model, and the learned $\mu^\ast$ does follow the noise level
+(Sec.~\ref{sec:exp-limits}). Any kernel or random-feature learner used with a
+near-zero ridge on noiseless data will run into the same problem.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Closed-form inner solvers.}
+The closest prior method is ALPaCA~\citep{harrison2018alpaca}, closed-form
+Bayesian linear regression on the last hidden layer of a learned MLP encoder, with
+a meta-learned prior; it learns the features that Meta-LSQ freezes, and we compare
+with an ALPaCA-style reimplementation.
+R2D2~\citep{bertinetto2019r2d2} and MetaOptNet~\citep{lee2019metaoptnet} put ridge
+regression and convex SVMs on learned conv backbones, so the basis is still
+learned. iMAML~\citep{rajeswaran2019imaml} gets the outer gradient from the
+implicit function theorem instead of unrolling.
+Conditional Neural Processes~\citep{garnelo2018cnp} amortise the support-to-query
+mapping through a learned set-encoder, and Deep Kernel
+Transfer~\citep{patacchiola2020dkt} learns a GP kernel. Meta-LSQ learns no
+backbone or encoder, only three scalars of a fixed kernel family.
+
+\paragraph{Derivative-augmented fitting and random features.}
+Sobolev training~\citep{czarnecki2017sobolev} adds derivative-matching terms at
+double-backpropagation cost and gradient-enhanced kriging~\citep{laurent2019gek}
+does the same in GP regression at $\mathcal{O}(M^3 (d{+}1)^3)$; Hermite RBF
+interpolation~\citep{wu1992hermite} and kriging with derivative
+observations~\citep{morris1993derivatives} are older still. Combining cheap Sobolev fitting via cyclic-derivative random
+features with bilevel meta-learning over the basis spectrum is, as far as we know,
+new. \citet{rahimi2007rff} introduced random features and
+\citet{tancik2020fourierfeat} tied Fourier features to spectral bias; extreme
+learning machines~\citep{huang2015elm} and PIELM~\citep{dwivedi2020pielm} fit
+closed-form read-outs over a frozen random basis.
+FastLSQ~\citep{sulc2026fastlsq} swaps $\tanh$ for $\sin$ and builds the cyclic
+identity into an operator calculus for solving PDEs one instance at a time; we use
+it to meta-learn across regression and PDE families. Physics-informed
+networks~\citep{raissi2019pinn} are retrained for every instance by
+gradient-based optimisation.
+
+\paragraph{The sense of meta-learning used here.}
+\citet{lorraine2020implicithg} compute approximate hypergradients via the
+implicit function theorem at the inner optimum; in Meta-LSQ the inner optimum is
+the ridge solution, so the hypergradient is exact. The kernel reading implies a
+caveat: with noiseless in-span targets the optimal $(\sigma,\mu,w)$ is one shared
+spectral prior, so the outer loop is closer to amortised kernel-hyperparameter
+selection than to learning task-transferable weights as MAML
+does~\citep{finn2017maml}.
+
+\section{Discussion and Conclusions}
+\label{sec:discussion}
+
+We have presented Meta-LSQ, a closed-form meta-learner for smooth,
+low-dimensional few-shot regression, and our experiments are limited to that
+setting. It works best when the task family is smooth and close to the span of the
+basis, and with a ridge floor it also beats MLP-MAML on tanh functions, which are
+smooth but outside the span. On the real calibration data it is not the most
+accurate method we tried. The comparison with the shared-hyperparameter GP suggests
+that most of the improvement over MAML comes from amortising a three-scalar
+Sobolev kernel, which takes the place of both the inner loop and the learned
+initialisation. Non-smooth targets remain the main weakness, and in high
+dimension the derivative estimates degrade; heavier-tailed spectra help with the
+former, and per-coordinate or low-rank bandwidths might help with the latter. We
+do not see Meta-LSQ as a replacement for deep meta-learners on images or language,
+but it could be used there as a closed-form Sobolev head on top of a learned
+backbone. The ALPaCA-style baseline gives an idea of what a learned encoder buys:
+it transfers better out of class ($0.30$ against $0.64$ mean tanh MSE for
+Meta-LSQ with the ridge floor, matched seeds), but is not more accurate in class
+with values only. With one-hot labels the same solve becomes a closed-form
+classifier, and on synthetic 5-way tasks it is three to four points better than an
+MLP-MAML classifier with two learned scalars (App.~\ref{app:classify}). This is
+only a feasibility check; we have not tried a three-scalar outer loop on a
+few-shot image benchmark, where R2D2 and MetaOptNet would be the natural
+comparisons. Streaming Cholesky updates are left for future work.
+
+\paragraph{Reproducibility.}
+All numbers in the paper are produced by scripts that write their results to JSON
+or NPZ files, and the figures are rendered directly from these files. The code and
+experiment scripts are available at \TODO{public repository URL}.
+\label{main:end}
+
+\section*{Acknowledgments}
+\TODO{funding and acknowledgements, or delete this section}
+
+\section*{LLM Disclosure}
+\TODO{confirm or correct every statement in this section.}
+We used Claude (Anthropic; \TODO{model names and versions}), accessed through
+Claude Code, a command-line coding assistant. It was used for
+\TODO{implementation of experiment scripts and figure code: yes/no};
+\TODO{methodology or experimental design: yes/no};
+\TODO{interpreting results: yes/no};
+and for editing the manuscript text, including the revisions for this camera-ready
+version. Its output was checked as follows: every number in the paper is
+re-derived from the stored experiment results by a script that fails on any
+mismatch, and all text was read and revised by the author. \TODO{further checks}.
+AI tools were not used for synthetic data, theoretical or conceptual frameworks,
+mathematical claims or proofs, hypotheses, translation, data cleaning or
+qualitative data analysis \TODO{correct this list}. The method and experiments do
+not rely on an LLM.
+
+\printbibliography
+
+\clearpage
+\appendix
+
+\section{Training Algorithm}
+\label{app:alg}
+
+\begin{algorithm}[tb]
+\caption{Meta-LSQ training}
+\label{alg:meta-lsq}
+\begin{algorithmic}[1]
+\Require frozen $\hat W \in \R^{d\times N}$, $\hat W_{kj}\sim\mathcal{N}(0,1)$;
+         phases $b_j\sim\mathcal{U}[0,2\pi)$
+\Require log-parameters $\ell_\sigma, \ell_\mu, \ell_w$; Adam
+\For{outer step $= 1,\dots,T_{\text{outer}}$}
+  \State sample $B$ tasks $(X_i,y_i,G_i,X_i^q,y_i^q)$
+  \State $\sigma \gets e^{\ell_\sigma}$, $\mu \gets e^{\ell_\mu}$,
+         $w \gets e^{\ell_w}$, $W \gets \sigma\hat W$
+  \For{$i = 1,\dots,B$}
+    \State assemble $H_i,\Gamma_{i,1..d}$ by~\eqref{eq:cyclic}; build $A_i,t_i$
+    \State $\beta_i \gets \texttt{solve}(A_i^\top\! A_i + \mu I,\;A_i^\top t_i)$
+           \hfill{\footnotesize// differentiable}
+    \State $\mathcal{L}_i \gets \|H_i^q\beta_i - y_i^q\|^2/|\mathcal{D}^q_i|$
+  \EndFor
+  \State Adam-step on $\nabla_{\ell_\sigma,\ell_\mu,\ell_w}
+         \tfrac{1}{B}\sum_i \mathcal{L}_i$
+\EndFor
+\State \Return $(\sigma^\ast,\mu^\ast,w^\ast,\hat W,b)$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Posterior, and the Meaning of $\mu$ and $w$}
+\label{app:posterior}
+
+Place a Gaussian prior $\beta\sim\mathcal{N}(0,\sigma_p^2 I)$ and likelihood
+$t \mid \beta \sim \mathcal{N}(A\beta, \sigma_y^2 I)$ on the stacked targets (the
+$\sqrt{w}$ scaling of the derivative rows is derived below), with
+$\mu = \sigma_y^2/\sigma_p^2$. Conjugacy gives
+$\beta \mid t \sim \mathcal{N}(\beta^\ast, \sigma_y^2 (A^\top\! A+\mu I)^{-1})$,
+whose mean is~\eqref{eq:beta-star}. For any test point and multi-index the
+predictive derivative $D^\alpha u_N(x_\star) = c^{(\alpha)}(x_\star)^\top\beta$
+is a linear functional of $\beta$, hence Gaussian with variance
+$\sigma_y^2\,c^{(\alpha)\top}(A^\top\! A+\mu I)^{-1}c^{(\alpha)}$, one
+$\mathcal{O}(N^2)$ product against the cached factor. The noise scale
+$\sigma_y^2$ sets the absolute scale; the ridge fixes only the ratio
+$\sigma_y^2/\sigma_p^2$.
+
+\paragraph{Where $w$ comes from.} Place independent Gaussian likelihoods on the
+two observation types, $y_i = h(x_i)^\top\beta + \varepsilon^y_i$ with
+$\varepsilon^y_i \sim \mathcal{N}(0,\sigma_y^2)$ and
+$g_{ik} = \gamma_k(x_i)^\top\beta + \varepsilon^g_{ik}$ with
+$\varepsilon^g_{ik} \sim \mathcal{N}(0,\sigma_g^2)$. The negative log-posterior
+is, up to constants, $\tfrac12\big(\sigma_y^{-2}\|H\beta-y\|^2 +
+\sigma_g^{-2}\sum_k\|\Gamma_k\beta-g_k\|^2 + \sigma_p^{-2}\|\beta\|^2\big)$;
+multiplying by $2\sigma_y^2$ gives the stacked objective~\eqref{eq:beta-star} with
+$w = \sigma_y^2/\sigma_g^2$ and $\mu = \sigma_y^2/\sigma_p^2$. Both
+meta-parameters are therefore noise-model quantities, which
+Secs.~\ref{sec:exp-mechanism} and~\ref{sec:exp-limits} test.
+
+\section{Noise Ablations: the Ridge and $w$}
+\label{app:wmodel}
+
+Figure~\ref{fig:noise} shows the support-value noise sweep behind
+Sec.~\ref{sec:exp-limits} (noise on support values only; derivatives and query
+clean), with 8000 meta-training steps. The learned ridge rises monotonically with
+the noise level, $1.9\!\times\!10^{-6}$, $8.6\!\times\!10^{-5}$,
+$4.2\!\times\!10^{-4}$ and $1.2\!\times\!10^{-3}$ for
+$\epsilon \in \{0, 0.1, 0.25, 0.5\}$. The learned $w$ is $82$--$113$ without noise
+and $228$--$461$ with it, on every seed, but does not rise further between the
+noise levels. At the benchmark's 2000 steps neither scalar has converged: $w$
+starts at $1$ and climbs more slowly under value noise, so a 2000-step sweep
+shows $w$ falling with noise (from $11$ to $2.2$) although the query loss prefers a
+larger $w$ (at $\epsilon{=}0.5$, the 2000-step model's test MSE falls from $0.14$
+at its learned $w{=}2$ to $0.075$ at $w{=}10^3$, seed 0). The rest of this appendix is the support-gradient sweep behind
+Sec.~\ref{sec:exp-mechanism}.
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=\linewidth]{figures/noise.pdf}
+\caption{Noise on the support values (3 seeds). \emph{Left:} the meta-learned
+ridge rises with the noise std, from $1.9\!\times\!10^{-6}$ to
+$1.2\!\times\!10^{-3}$. \emph{Right:} clean-query test MSE. Both methods are
+trained for 8000 steps.}
+\label{fig:noise}
+\end{figure}
+
+
+\paragraph{Gradient noise lowers $w$.}
+Meta-training Meta-LSQ-Sobolev with support gradients corrupted by i.i.d.\
+Gaussian noise of std $\epsilon_g$ (support values and query clean; 3 seeds)
+gives learned $w = 10.9, 0.29, 0.20, 0.19$ and clean-query test MSE $0.023, 0.095,
+0.098, 0.21$ for $\epsilon_g \in \{0, 0.1, 0.25, 0.5\}$. The two remaining runs use
+a shorter protocol (1200 steps, 150 test tasks, 3 seeds), under which the
+clean-gradient value is $w = 4.6$. Under magnitude-proportional corruption
+$g \leftarrow g + \epsilon|g|\xi$ with $\xi \sim \mathcal{N}(0,1)$ the learned $w$
+also drops ($4.6 \to 0.31$ at $\epsilon{=}0.1$), so the effect does not depend on
+i.i.d.\ noise. When only a fraction $p$ of support points carries a clean gradient
+row, $w$ stays at $3.8$, $4.9$ and $4.6$ for $p \in \{0.25, 0.5, 1\}$ and test MSE
+falls with $p$ ($0.173, 0.120, 0.069, 0.036$ for $p \in \{0, 0.25, 0.5, 1\}$). So
+$w$ drops for wrong gradients but not for missing ones, as $w =
+\sigma_y^2/\sigma_g^2$ predicts.
+
+\section{Gaussian-Process Comparators}
+\label{app:gp}
+
+Table~\ref{tab:gek} collects the GP comparators of Sec.~\ref{sec:exp-works}.
+
+\begin{table}[tb]
+\centering
+\caption{The GP comparators, with the prior each assumes. All get the same
+support values and derivatives. Rows 2--4 fit their kernel per task by marginal
+likelihood with the signal variance profiled out; row 1 fixes the signal variance
+at one; the shared row meta-learns one set of hyperparameters across tasks by
+query loss and freezes it at test time. ``ms/t'' is the per-task cost at test
+time (the shared row was not timed under comparable conditions). Only the comparator whose
+prior is the task family is far more accurate than Meta-LSQ, at over $100\times$
+its per-task cost. 200 tasks, 5 seeds.}
+\label{tab:gek}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabular}{llrl}
+\toprule
+comparator & prior assumed & ms/t & test MSE \\
+\midrule
+GEK RBF, unit var.\      & smoothness      & $0.9$  & $0.079 \pm 0.022$ \\
+GEK RBF, profiled        & smoothness      & $2.9$  & $0.013 \pm 0.008$ \\
+GEK periodic             & periodicity     & $69.5$ & $0.025 \pm 0.015$ \\
+GEK spec.\ mix.\ $Q{=}1$ & \emph{the family} & $102$  & $\mathbf{3.2}$e-$\mathbf{10}$ \\
+GEK RBF, shared          & smoothness      & n/a    & $0.026 \pm 0.014$ \\
+\midrule
+Meta-LSQ-Sobolev         & smoothness      & $0.9$ & $0.019 \pm 0.016$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Shared, meta-learned hyperparameters.}
+The shared row is the control that separates the benefit of the random features
+from the benefit of avoiding per-task hyperparameter search. An exact
+gradient-enhanced GP with an RBF kernel has three hyperparameters (length-scale,
+value noise, derivative noise), which we share across tasks and learn by Adam on
+the query loss through the posterior mean, then freeze at test time. Training
+follows Meta-LSQ's protocol: the same tasks, initialisation, learning rate and
+step budget, and the same 200 test tasks per seed as Table~\ref{tab:maml}
+(script \texttt{rebuttal\_gek\_shared\_matched.py}). Table~\ref{tab:gpshared}
+gives both step budgets with and without derivatives. With derivatives,
+Meta-LSQ-Sobolev is lower on 4 of 5 paired seeds at 2000 steps and on all 5 at
+6000 steps; with values only it is lower on 4 of 5 and 3 of 5. At $M{=}10$ the
+exact kernel solves a $20\times20$ system with derivatives ($10\times10$ without),
+smaller than Meta-LSQ's $200$ features, so its per-task solve is cheaper here; the
+two costs cross where $M(d{+}1)$ approaches $N$.
+
+\begin{table}[tb]
+\centering
+\caption{Meta-LSQ against an exact GP with shared, query-loss-learned
+hyperparameters on the 10-shot sinusoid benchmark (test MSE, mean\,$\pm$\,sample
+std over 5 seeds, same training tasks and test tasks for every row).}
+\label{tab:gpshared}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrr}
+\toprule
+method & 2k steps & 6k steps \\
+\midrule
+Meta-LSQ-Sobolev  & $0.019 \pm 0.016$ & $0.0043 \pm 0.0039$ \\
+GEK RBF, shared   & $0.026 \pm 0.014$ & $0.013 \pm 0.008$ \\
+\midrule
+Meta-LSQ $w{=}0$  & $0.059 \pm 0.043$ & $0.034 \pm 0.024$ \\
+GP RBF, shared    & $0.075 \pm 0.028$ & $0.034 \pm 0.017$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A grid search over shared hyperparameters, selected on validation tasks, reaches
+$0.012$ ($0.031$ without derivatives), also within seed spread of
+Meta-LSQ-Sobolev.
+
+
+\section{Real Data: Protocol and Full Results}
+\label{app:real}
+
+\paragraph{Protocol.} Each task is one ISO week of hourly co-located readings:
+input the metal-oxide sensor response, target the reference analyser. The four
+pairs are PT08.S1 to CO, PT08.S4 to NO$_2$, PT08.S2 to benzene and PT08.S3 to
+NO$_x$, with $53$--$56$ weeks each; the NMHC reference has only eight weeks and is
+skipped. The first $60\%$ of weeks (32--34) are meta-train, the rest (21--22)
+meta-test. Inputs and targets are standardised with meta-train statistics only.
+Within a week the support ($K{=}10$) and query ($50$) points are a seeded random
+split, identical for every method within a seed. The targets differ in how
+nonlinear their calibration curve is: a degree-5 polynomial improves the linear
+$R^2$ on meta-train weeks by $0.005$ (CO), $0.021$ (NO$_2$), $0.031$ (benzene)
+and $0.271$ (NO$_x$). MLP-MAML is the paper's standard baseline; ``global
+linear'' fits one calibration on all meta-train points and ignores drift. The
+FD-Sobolev variant enters three-point slopes estimated from the ten support
+values as derivative rows with a learned weight.
+
+\begin{table*}[tb]
+\centering
+\caption{Gas-sensor calibration, mean normalised query MSE on held-out weeks,
+$\pm$ std over 5 seeds. The first row is the configuration of
+Table~\ref{tab:real}.}
+\label{tab:realfull}
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrrrr}
+\toprule
+method & CO & NO$_2$ & benzene & NO$_x$ \\
+\midrule
+Meta-LSQ, $\mu = 10\mu^\ast$   & $0.32 \pm 0.06$ & $0.86 \pm 0.06$ & $3.7$e-3 $\pm$ $2.4$e-3 & $0.85 \pm 0.09$ \\
+Meta-LSQ, learned $\mu^\ast$   & $0.38 \pm 0.14$ & $1.03 \pm 0.16$ & $1.3$e-3 $\pm$ $0.5$e-3 & $0.95 \pm 0.12$ \\
+Meta-LSQ, $\mu \geq 10^{-2}$   & $0.32 \pm 0.04$ & $0.85 \pm 0.06$ & $5.1$e-2 $\pm$ $2.0$e-2 & $0.84 \pm 0.07$ \\
+Meta-LSQ FD-Sobolev            & $0.87 \pm 0.36$ & $4.53 \pm 2.2$  & $3.8$e-3 $\pm$ $1.7$e-3 & $6.58 \pm 3.4$ \\
+GP RBF, shared                 & $0.30 \pm 0.03$ & $0.84 \pm 0.06$ & $3.8$e-3 $\pm$ $2.8$e-3 & $0.81 \pm 0.05$ \\
+MLP-MAML                       & $0.28 \pm 0.02$ & $3.86 \pm 1.4$  & $1.5$e-4 $\pm$ $1.1$e-4 & $0.72 \pm 0.03$ \\
+per-task linear                & $0.31 \pm 0.02$ & $0.90 \pm 0.08$ & $4.8$e-2 $\pm$ $0.9$e-2 & $1.34 \pm 0.45$ \\
+per-task quadratic             & $0.40 \pm 0.18$ & $1.74 \pm 0.89$ & $3.0$e-4 $\pm$ $2.2$e-4 & $2.28 \pm 1.4$ \\
+global linear                  & $0.38 \pm 0.02$ & $6.24 \pm 0.13$ & $5.2$e-2 $\pm$ $0.6$e-2 & $3.12 \pm 0.12$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\paragraph{The ridge floor.} Table~\ref{tab:relfloor} evaluates the trained
+value-only model at a floor relative to its learned ridge, $\mu = c\,\mu^\ast$,
+and at the fixed floor of Table~\ref{tab:ooc}. The learned ridge is
+$4.4\!\times\!10^{-4}$, $7.6\!\times\!10^{-4}$, $5.3\!\times\!10^{-6}$ and
+$5.2\!\times\!10^{-4}$ for CO, NO$_2$, benzene and NO$_x$. On the noisy targets
+the mean error is flat or improving up to $c \approx 30$, and the worst week
+falls up to $c \approx 10$ on all three. On the nearly noiseless benzene target
+the mean degrades steadily with $c$, and the fixed floor costs $40\times$.
+
+\begin{table}[tb]
+\centering
+\caption{Ridge floor on held-out weeks: mean / worst-week normalised query MSE
+(5 seeds pooled for the maximum). The floor is applied at test time to the
+trained model.}
+\label{tab:relfloor}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lrrrr}
+\toprule
+floor & CO & NO$_2$ & benzene & NO$_x$ \\
+\midrule
+$\mu^\ast$          & $.38$ / $5.8$ & $1.03$ / $5.4$ & $.0013$ / $.020$ & $.95$ / $8.0$ \\
+$3\mu^\ast$         & $.35$ / $4.1$ & $.92$ / $3.5$  & $.0021$ / $.040$ & $.90$ / $7.3$ \\
+$10\mu^\ast$        & $.32$ / $2.4$ & $.86$ / $3.0$  & $.0037$ / $.071$ & $.85$ / $4.3$ \\
+$30\mu^\ast$        & $.32$ / $1.6$ & $.84$ / $2.9$  & $.0066$ / $.096$ & $.85$ / $4.6$ \\
+$100\mu^\ast$       & $.35$ / $1.5$ & $.89$ / $2.7$  & $.012$ / $.22$   & $.94$ / $4.7$ \\
+$\mu \geq 10^{-2}$  & $.32$ / $1.7$ & $.85$ / $2.9$  & $.051$ / $.48$   & $.84$ / $4.3$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{Extrapolation, Conditioning, and the Ridge Tail}
+\label{app:tail}
+
+\paragraph{Extrapolation or round-off.}
+The near-zero ridge makes the normal equations ill-conditioned
+($\mathrm{cond} \sim 10^6$ at $\mu^\ast$ against $\sim$$10^3$ at
+$\mu{=}10^{-2}$), so the solver is a possible culprit. Solving the same systems by
+a stabilised Tikhonov least-squares (a least-squares solve on $[A;\sqrt{\mu}I]$,
+which avoids squaring $\mathrm{cond}(A)$) changes test MSE by less than $1\%$
+($0.0206$ against $0.0207$ in class), and changes the blowup ratio
+$\max|\text{prediction}|/\max|\text{target}|$ by at most $0.012$ in class and at
+most $3.2$ on triangle tasks, where the ratio itself reaches $980$ (3 seeds). The
+condition number correlates only weakly with per-task blowup magnitude
+($r \approx 0.21$). The tail therefore comes from model extrapolation, which a
+larger ridge fixes and a better solver does not.
+
+\paragraph{The ridge as tail-risk control.}
+Pooling 600 triangle tasks over 3 seeds (Table~\ref{tab:tail}), raising $\mu$
+from $\mu^\ast$ to $10^{-1}$ cuts the p99 by three orders of magnitude and the
+share of the mean held by the worst $1\%$ of tasks from $76\%$ to $15\%$, while
+the median improves.
+
+\begin{table}[tb]
+\centering
+\caption{Per-task MSE distribution on the triangle family across ridge values
+(600 tasks pooled over 3 seeds).}
+\label{tab:tail}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\toprule
+ridge $\mu$ & median & p90 & p99 & max & top-1\% \\
+\midrule
+$\mu^\star\!\approx\!10^{-5}$ & $34$ & $3900$ & $2.6$e5 & $4.8$e6 & $76\%$ \\
+$10^{-3}$ & $12$ & $282$ & $4400$ & $1.7$e4 & $43\%$ \\
+$10^{-2}$ & $7.7$ & $124$ & $762$ & $3800$ & $31\%$ \\
+$10^{-1}$ & $\mathbf{7.1}$ & $\mathbf{74}$ & $\mathbf{182}$ & $\mathbf{582}$ & $\mathbf{15\%}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Two data-driven alternatives to the hand-set floor.}
+Replacing the floor by leave-out cross-validation over
+$\mu \in \{\mu^\ast,10^{-3},10^{-2},10^{-1},1\}$, with one fold that fits on 7
+support points and scores the other 3, removes the hand-set constant and matches
+the floor on typical tasks (in-class mean $0.024$ against the floor's $0.054$;
+triangle median $7.0$ against $8.9$), but not on the tail. Three held-out points
+often miss the extrapolation risk, so the mean still carries blowups (triangle
+$5216$ against $64$).
+
+Generalised cross-validation reads the whole $\mu$-curve off one SVD, with no
+held-out points. With the thin SVD $A = U\,\mathrm{diag}(s)\,V^\top$ of rank $r$,
+$c = U^\top t$ and $\rho_i = \mu/(s_i^2+\mu)$,
+\[
+\mathrm{GCV}(\mu) = \frac{n\big(\sum_{i\le r} \rho_i^2 c_i^2 + \|t\|^2 -
+\|c\|^2\big)}{\big(\sum_{i\le r} \rho_i + n - r\big)^2};
+\]
+for a full-row-rank design ($r = n$) the two extra terms vanish. It is much worse
+than either alternative (Table~\ref{tab:ridgepolicy}): it picks the grid's smallest
+$\mu$ on $999/1000$ in-class tasks and inflates every mean by orders of magnitude.
+With $n = 20$ rows against $N = 200$ columns and noiseless targets, the residual
+and the residual degrees of freedom both tend to zero as $\mu \to 0$
+(Observation~\ref{obs:ridge}), so GCV sees an almost perfect in-sample fit at
+every small ridge.
+
+As a check of the implementation, the same code was run on an ill-conditioned
+overdetermined problem ($n{=}100$, $N{=}40$, singular values spanning three
+decades, Gaussian noise) where the optimal ridge is interior: there GCV recovers
+$86$--$95\%$ of the gain between no ridge and the oracle ridge at every noise
+level.
+
+\begin{table}[tb]
+\centering
+\caption{Ridge policies on 1000 pooled per-task fits per family (5 seeds $\times$
+200 tasks). On the out-of-class tails both data-driven policies are worse than the
+hand-set floor, and GCV is worse on every mean and p99. All rows come from one
+run and share meta-trained models; that run is separate from the one behind
+Table~\ref{tab:ooc}, and its medians are pooled over the 1000 fits rather than
+averaged over seeds, so the two tables differ slightly.}
+\label{tab:ridgepolicy}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrr}
+\toprule
+family & policy & mean & median & p99 \\
+\midrule
+\multirow{4}{*}{sin}
+ & tuned $\mu^\star$ & $0.019$ & $2.7$e-5 & $0.39$ \\
+ & floor $10^{-2}$   & $0.054$ & $1.5$e-3 & $0.96$ \\
+ & leave-out CV      & $0.024$ & $4.8$e-5 & $0.49$ \\
+ & GCV               & $2033$  & $1.1$e-3 & $409$ \\
+\midrule
+\multirow{4}{*}{tanh}
+ & tuned $\mu^\star$ & $44$          & $0.100$ & $1050$ \\
+ & floor $10^{-2}$   & $\mathbf{0.58}$ & $\mathbf{0.057}$ & $\mathbf{8.8}$ \\
+ & leave-out CV      & $12$          & $0.066$ & $220$ \\
+ & GCV               & $1.9$e4       & $0.348$ & $1.1$e5 \\
+\midrule
+\multirow{4}{*}{triangle}
+ & tuned $\mu^\star$ & $1.8$e4       & $27.9$ & $2.6$e5 \\
+ & floor $10^{-2}$   & $\mathbf{64}$ & $8.9$  & $\mathbf{918}$ \\
+ & leave-out CV      & $5216$        & $\mathbf{7.0}$ & $6.4$e4 \\
+ & GCV               & $3.4$e7       & $63.9$ & $2.7$e7 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Operator and Integral Rows}
+\label{app:operator}
+
+\paragraph{A parametric PDE family.}
+\label{app:pde}
+We apply Meta-LSQ to 1-D Helmholtz problems $-u'' + k^2 u = f$ on $[0,2\pi]$
+with homogeneous Dirichlet conditions, $k\sim\mathcal{U}[1,10]$ and $f$ a random
+low-frequency forcing. The Sobolev rows are replaced by differential-operator
+rows: by~\eqref{eq:cyclic}, $-u''+k^2u = (W^2+k^2)\sin(Wx+b)$, so each per-task
+inner solve is again a linear collocation system in $\beta$, assembled without
+autograd. The outer loop is label-free: we meta-learn $(\sigma,\mu)$ by minimising
+the PDE residual on held-out collocation points disjoint from the inner-solve
+points, so no reference solution enters the inner solve or the meta-objective.
+The forcing is a sum of sinusoids, so the exact solution is available in closed
+form and is used only to report the final error, the RMS over 200 points on
+$[0,2\pi]$. Both methods solve on the same 120 collocation points with the two
+boundary rows weighted by 10. Over 5 seeds (a seed redraws the basis and the
+training tasks; the 50 test tasks are fixed) and 1000 meta-training steps, the
+amortised pair ($\sigma^\ast = 2.9$--$3.5$) reaches a median error of
+$1.8\!\times\!10^{-7}$, against $8.0\!\times\!10^{-7}$ for per-task selection among
+seven bandwidths by the same held-out-residual criterion with ridge $10^{-6}$.
+The amortised pair is more accurate on every seed, by $2.0$--$14\times$, and needs
+one solve per task where per-task selection needs eight. The learned ridge
+($10^{-10}$--$4\!\times\!10^{-9}$) accounts for this: with the same ridge,
+per-task selection reaches $5.7\!\times\!10^{-8}$, more accurate than the shared
+bandwidth on four seeds (by $2.1$--$5.1\times$) and level on the fifth. With the rank-revealing least-squares solve of
+FastLSQ~0.7.1~\citep{sulc2026fastlsq} and no ridge, both reach $2\!\times\!10^{-9}$ or less
+(medians $8.2\!\times\!10^{-10}$ and $1.7\!\times\!10^{-10}$), so on this family
+the ridge of the normal-equations solve, not the bandwidth, limits accuracy.
+
+\paragraph{A Volterra integro-differential family.}
+\label{app:integro}
+Because the cyclic identity runs backwards, integral rows are equally
+closed-form and linear in $\beta$ (a numerically stable $\mathrm{sinc}$ form
+avoids the $1/W$ singularity near DC), so a differential and an integral term
+compose into one design matrix with no quadrature and no autograd. On the
+Volterra family
+\begin{equation}
+\label{eq:volterra}
+u'(x) + \lambda\!\int_0^x\! u(s)\,ds = f(x),\quad u(0)=0,\; x\in[0,1],
+\end{equation}
+with manufactured solution $u^\star(x) = a\sin(wx)$ over
+$a\sim\mathcal{U}[0.5,2]$, $w\sim\mathcal{U}[1,4]$,
+$\lambda\sim\mathcal{U}[0.5,5]$, a label-free amortised bandwidth
+($\sigma^\ast = 4.9$, meta-learned from the held-out collocation residual alone)
+reaches a mean relative $L^2$ error of $8.1\!\times\!10^{-7}$ at $48$\,ms per task,
+against $5.8\!\times\!10^{-7}$ at $280$\,ms for a per-task sweep: $1.4\times$ less
+accurate at $6\times$ lower test-time cost (one seed).
+
+\paragraph{Inverse: recovering a memory kernel.} The scalar $\lambda$
+in~\eqref{eq:volterra} is a memory strength. Given the known forcing and noisy
+observations of $u$ at 60 points, we recover $\lambda$ by Adam through the
+differentiable closed-form solve, along the same IFT path as the meta-parameters:
+the operator is rebuilt each step and solved in one differentiable least-squares
+call, and the data-fit gradient flows $\text{loss}\to u(\lambda)\to\beta\to\lambda$.
+Across $\lambda \in \{0.5,1,2,4\}$, the relative error is about $10^{-5}$ on clean
+data and $0.3$--$3.9\%$ under $5\%$ observation noise. Integral rows thus handle
+the memory term directly, without differentiating the equation.
+
+\section{Few-Shot Classification}
+\label{app:classify}
+
+One-hot encoding $C$-way labels turns~\eqref{eq:beta-star} into a one-vs-rest
+closed-form classifier ($\beta \in \R^{N\times C}$, predict by argmax),
+meta-learning only $(\sigma,\mu)$. On synthetic 5-way Gaussian-blob tasks in
+$d{=}2$ (3 seeds, 200 test tasks) this reaches $89.0 \pm 0.7\%$ (5-shot) and
+$84.0 \pm 1.0\%$ (1-shot), against $85.1 \pm 1.2\%$ and $80.5 \pm 0.03\%$ for an
+MLP-MAML classifier (5 inner steps at learning rate $0.05$) with $1965$ learnable
+parameters; Meta-LSQ learns 2. This is a feasibility check only: the tasks are
+synthetic, and a comparison with R2D2~\citep{bertinetto2019r2d2} and
+MetaOptNet~\citep{lee2019metaoptnet} would need a standard image benchmark, which
+we have not run.
+
+\section{Log-Density Fits: Cost Asymmetry and Dimension}
+\label{app:gmm}
+
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=\textwidth]{figures/regime.pdf}
+\caption{Operating regime. \textbf{(a)}~Log-density fit against ambient
+dimension, bandwidth selected on held-out data (one seed): value error stays below
+$6\!\times\!10^{-2}$ up to $d{=}64$. \textbf{(b)}~On an anisotropic 2-D sinusoid
+family, a per-coordinate bandwidth (one extra scalar) recovers most of the
+achievable gain (5 seeds). \textbf{(c)}~Median test MSE by frequency distribution
+(3 seeds, ridge floor $10^{-2}$): heavier tails cut the non-smooth triangle median
+$2.7\times$, to about MLP-MAML's level, but cost roughly $30\times$ on the
+in-class median.}
+\label{fig:regime}
+\end{figure*}
+
+
+\paragraph{Dimension.}
+Scanning the log-density setup over $d\in\{4,8,16,32,64\}$ at $N{=}1500$ (one
+seed), the value error stays at or below $6\!\times\!10^{-2}$ throughout
+(Fig.~\ref{fig:regime}a), while gradient and Hessian errors reach $0.89$ and
+$0.96$ at $d{=}64$. The bandwidth is selected on a held-out set, and the optimal
+bandwidth shrinks with $d$. At $d \geq 16$ the selected value sits at the grid's
+lower end ($\sigma{=}0.05$), so the errors there may be slightly pessimistic.
+Selecting on the training residual instead can suggest a breakdown with
+dimension that is not there.
+
+
+\begin{table}[tb]
+\centering
+\caption{Sobolev fitting of a Gaussian-mixture log-density at $d{=}8$ (relative
+RMSE on 400 held-out points, bandwidth selected on a held-out validation set, one
+seed; five-seed medians for $d{=}4$ and $d{=}8$ are in the text below). The main result is cost: the
+random-feature Sobolev fit is one stacked solve with no autograd graph and about
+$5\times$ faster than the MLP Sobolev fit, which needs double backpropagation.}
+\label{tab:sobolev}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\toprule
+method & fit (s) & val & grad & Hess & sel.\ $\sigma$ \\
+\midrule
+RFF                & 3.4   & $7.1$e-3 & $5.3$e-2 & $9.3$e-2 & $0.05$ \\
+RFF $+$ Sobolev    & 12.9  & $3.4$e-3 & $3.5$e-2 & $7.9$e-2 & $0.1$ \\
+MLP                & 46.1  & $8.9$e-3 & $6.7$e-2 & $1.1$e-1 & n/a \\
+MLP $+$ Sobolev    & 70.9  & $7.2$e-3 & $5.7$e-2 & $9.5$e-2 & n/a \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:sobolev} reports one seed at $d{=}8$. Over five seeds (a seed
+redraws the mixture, the samples and the features), the gradient rows lower all
+three errors on every seed at $d{=}8$ (medians: value $3.9$ against
+$7.1\!\times\!10^{-3}$, gradient $0.037$ against $0.056$, Hessian $0.081$ against
+$0.11$). At $d{=}4$ they lower value and gradient error on four of five seeds and
+Hessian error on three (medians: value $4.5$ against $9.9\!\times\!10^{-3}$,
+gradient $0.056$ against $0.12$, Hessian $0.17$ against $0.18$). The exception is
+the table's seed, where one test point lies $1.9$ from its nearest training point
+(the median distance is $0.40$). Both fits extrapolate badly to it, the Sobolev fit
+at its larger selected bandwidth more so, and that one point makes the Sobolev fit
+worse on all three errors for that seed. Bandwidth selection on a validation set
+that contains no such point cannot guard against this, which is one reason
+Sec.~\ref{sec:mechanism} compares the two designs at a fixed bandwidth. The
+Laplacian study of Sec.~\ref{sec:exp-mechanism} uses a separate setup (2500
+training points, 3 seeds, its own bandwidth and $w$ grid), so its absolute errors
+are not comparable with these.
+
+\section{Posterior Calibration}
+\label{app:calib}
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/calibration.pdf}
+\caption{Empirical versus nominal coverage on held-out sinusoid tasks (300
+tasks, 3 seeds).}
+\label{fig:calibration}
+\end{figure}
+
+The posterior's absolute scale depends on how $\sigma_y^2$ is set. At nominal
+$90\%$ coverage, $\sigma_y^2{=}1$ covers about $100\%$ (over-dispersed),
+$\sigma_y^2{=}\mu$ covers $27$--$68\%$ (over-confident, worse with more noise), and
+the residual plug-in estimate $\hat\sigma_y^2 = \frac{1}{M}\|H\beta^\ast - y\|^2$
+covers $31$--$64\%$ (closest, better with more noise); the plug-in is biased low
+because the fit nearly interpolates the support. None of these scales gives
+calibrated intervals.
+
+\end{document}

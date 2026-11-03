@@ -1,0 +1,13 @@
+# Meta-LSQ experiment dependencies (versions used to produce the reported numbers).
+# Python 3.9.18, single-thread CPU (OMP_NUM_THREADS=1) for reproducible wall-clock.
+torch==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.6.1
+matplotlib==3.9.4
+
+# FastLSQ (the sinusoidal-basis solver used by the log-density, derivative-oracle,
+# dimensionality and integro-differential experiments, and by the --svd option of
+# pde_helmholtz_meta.py). A local checkout can be used instead via FASTLSQ_PATH.
+fastlsq==0.7.1
+pandas            # real-data experiment (UCI Air Quality)

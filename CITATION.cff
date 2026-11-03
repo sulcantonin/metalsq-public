@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper."
+title: "Meta-LSQ: A Closed-Form Sobolev Inner Solver for Few-Shot Meta-Learning"
+authors:
+  - family-names: Sulc
+    given-names: Antonin
+license: MIT
+preferred-citation:
+  type: conference-paper
+  title: "Meta-LSQ: A Closed-Form Sobolev Inner Solver for Few-Shot Meta-Learning"
+  authors:
+    - family-names: Sulc
+      given-names: Antonin
+  collection-title: "Proceedings of the 8th Northern Lights Deep Learning Conference (NLDL)"
+  volume: 352
+  publisher:
+    name: PMLR
+  year: 2027

@@ -1,0 +1,79 @@
+{
+  "config": {
+    "K": 10,
+    "N": 200,
+    "meta_bs": 4,
+    "K_q": 10,
+    "grad_w": 10.0,
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "repeats": 400,
+    "warmup": 50,
+    "threads": 1,
+    "dtype": "float32"
+  },
+  "timings_us": {
+    "a_assembly": {
+      "mean_us": 98.39600083333362,
+      "std_across_seeds_us": 15.828411241487512,
+      "median_us": 60.56933333346374
+    },
+    "b_form_AtA": {
+      "mean_us": 181.71427666676382,
+      "std_across_seeds_us": 18.913980163425343,
+      "median_us": 87.80566666747684
+    },
+    "c_solve": {
+      "mean_us": 571.5709500000288,
+      "std_across_seeds_us": 167.9821669067254,
+      "median_us": 227.48566666708214
+    },
+    "inner_solve_nograd": {
+      "mean_us": 814.5626958333974,
+      "std_across_seeds_us": 51.33408766232944,
+      "median_us": 468.2913333341846
+    },
+    "forward": {
+      "mean_us": 4845.3614016667125,
+      "std_across_seeds_us": 165.12043878572484,
+      "median_us": 3138.9863333336857
+    },
+    "backward": {
+      "mean_us": 5294.965139166547,
+      "std_across_seeds_us": 680.5362868498721,
+      "median_us": 3461.208333333114
+    },
+    "full_step": {
+      "mean_us": 9637.430564999917,
+      "std_across_seeds_us": 685.5334872940836,
+      "median_us": 6919.7916666675255
+    },
+    "mlp_forward": {
+      "mean_us": 4007.134846666722,
+      "std_across_seeds_us": 1202.8086015551444,
+      "median_us": 2391.055666667086
+    },
+    "mlp_backward": {
+      "mean_us": 4373.18637250005,
+      "std_across_seeds_us": 695.5308124887223,
+      "median_us": 2958.4163333353786
+    },
+    "mlp_full_step": {
+      "mean_us": 8116.979341666568,
+      "std_across_seeds_us": 1705.7444723756357,
+      "median_us": 6139.805666665646
+    }
+  },
+  "backward_over_forward": 1.0927905475420634,
+  "inner_solve_fractions": {
+    "a_assembly": 0.12079610487522076,
+    "b_form_AtA": 0.22308200166329478,
+    "c_solve": 0.7016905548507125,
+    "overhead": -0.04556866138922801
+  },
+  "inner_stage_sum_us": 851.6812275001262,
+  "mlp_backward_over_forward": 1.0913499395054855
+}
