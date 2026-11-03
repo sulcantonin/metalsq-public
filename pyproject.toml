@@ -9,7 +9,7 @@ description = "Few-shot meta-learning with a closed-form Sobolev least-squares i
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Antonin Sulc"}]
-requires-python = ">=3.9"
+requires-python = ">=3.9"   # tested in CI on 3.10 and 3.12; developed on 3.9
 dependencies = ["torch>=2.0", "numpy"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
