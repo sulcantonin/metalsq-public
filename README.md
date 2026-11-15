@@ -126,11 +126,11 @@ pip install cheetah-accelerator scikit-learn scipy botorch matplotlib
 | `bo_desy.py` | DESY's Bayesian-optimisation protocol |
 | `beam_structure.py`, `beam_full.py` | the surrogate models, their meta-training, the tuning loop, and the choice of variants on development tasks |
 | `beam_final.py` | all methods on the 300 trials (Table 4) |
-| `beam_time.py`, `beam_machine_time.py` | error after every measurement and the machine-time model (App. K) |
-| `beam_robust.py`, `beam_noise_tail.py` | the robustness scenarios (Table K.1) and the trials with a lost beam |
+| `beam_time.py`, `beam_machine_time.py` | error after every measurement and the machine-time model (Sec. 4.3) |
+| `beam_robust.py`, `beam_noise_tail.py` | the robustness scenarios (Table 5) and the trials with a lost beam |
 | `ares_agent_check.py` | our copy of DESY's agent against every step of their published runs, and its error with and without clipped magnets |
-| `ares_grid.py`, `desy_runs.py` | DESY's grid of targets over the full range (Table K.2), read from their Zenodo record 7853721 |
-| `figure_ares_screen.py` | Fig. K.1 |
+| `ares_grid.py`, `desy_runs.py` | DESY's grid of targets over the full range (Table 6), read from their Zenodo record 7853721 |
+| `figure_ares_screen.py` | Fig. 2 |
 
 `examples/results/` holds the per-trial records of these runs (the larger ones
 gzipped) and the trained surrogates, and `reproduce/experiments/ares_summary.py`

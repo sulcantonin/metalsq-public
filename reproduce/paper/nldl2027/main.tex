@@ -555,6 +555,17 @@ worse, so they are no substitute for measured derivatives (App.~\ref{app:real}).
 \subsection{Closed-Loop Beam Tuning in Simulation}
 \label{sec:exp-ares}
 
+\begin{figure*}[tb]
+\centering
+\includegraphics[width=\textwidth]{figures/ares_screens.png}
+\caption{The simulated ARES screen on the trial where Meta-LSQ with derivatives
+ends closest to its median, at the best setting after 1, 10, 20, 50 and 150
+measurements; the dashed ellipse is the target ($2\sigma$). The last column shows
+the final beam (solid) against the target with the differences magnified five
+times.}
+\label{fig:ares-screens}
+\end{figure*}
+
 We also put the solve inside a tuning loop, on the ARES experimental area at DESY,
 where three quadrupoles and two steerers set the position and size of the electron
 beam on a screen and \citet{kaiser2024rlbo} compared a reinforcement-learning-trained
@@ -574,7 +585,7 @@ differentiable model of the beamline the surrogates also fit derivatives.
 \caption{Beam tuning on DESY's 300 ARES trials: error of the best setting after 150
 measurements (\textmu m) and measurements needed to remove $99\%$ of the starting
 error (median, with the share of trials that get there). One training run per
-method; protocol and robustness in App.~\ref{app:ares}.}
+method; protocol in App.~\ref{app:ares}.}
 \label{tab:ares}
 \footnotesize
 \setlength{\tabcolsep}{2.5pt}
@@ -603,23 +614,9 @@ derivatives Meta-LSQ is the most accurate method and removes $99\%$ of the start
 error in 16 measurements, slightly ahead of ALPaCA-style. Gradient descent on the
 measured error with the same derivatives ends at $14.2$\,\textmu m, worse than both
 surrogates from values alone, so the derivatives help mainly through the fitted
-model. Two results qualify this. The surrogate loop reverses a quadrupole about 240 times
-per run against 8 times for the agent, which costs time on magnets with hysteresis,
-and when the derivatives come from an imperfect model (incoming beam sizes off by up
-to $20\%$, misalignments unknown) both surrogates end near $11$\,\textmu m, worse than
-Meta-LSQ from values alone ($8.8$\,\textmu m on the same trials).
+model. Figure~\ref{fig:ares-screens} shows one trial.
 
-DESY's trials ask for beam sizes of at most $0.5$\,mm. On their simulated grid of targets over
-the full range of the environment (sizes up to $2$\,mm), for which they published the
-final beams of the agent and of the Bayesian optimisation, the same values-only loops
-end at a median of $7.3$\,\textmu m, against $14.4$ for the agent and $41.9$ for the
-Bayesian optimisation. The agent is level with the surrogates below $0.5$\,mm, and its
-error grows to $278$\,\textmu m for the largest targets, where the surrogates stay near
-$8$\,\textmu m (Table~\ref{tab:ares-grid}, App.~\ref{app:ares}).
-
-\subsection{The Contribution of the Derivative Rows}
-\label{sec:exp-mechanism}
-
+% placed here so that it lands at the top of the page of Sec. 4.4
 \begin{figure*}[tb]
 \centering
 \includegraphics[width=\textwidth]{figures/mechanism.pdf}
@@ -634,6 +631,88 @@ random target, values-only against stacked fit ($\mu{=}10^{-5}$, mean over 200
 draws).}
 \label{fig:mechanism}
 \end{figure*}
+
+\begin{table}[tb]
+\centering
+\caption{Robustness on the first 150 ARES trials: error after 150 measurements
+(\textmu m, median / mean), every method's settings unchanged. ``Imperf.'':
+derivatives from a model with no misalignments and the incoming beam's sizes off by
+up to $20\%$. ``Noise'': DESY's noise model on the readings and the real screen
+size. ``Hyster.'': each quadrupole lags its setting by $1\%$ of its range (details
+in App.~\ref{app:ares}).}
+\label{tab:ares-robust}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrr}
+\toprule
+method & nominal & imperf. & noise & hyster. \\
+\midrule
+RL agent            & $4.5/17$   & n/a & $22/\mathbf{34}$  & $\mathbf{8.7}/\mathbf{18}$ \\
+BO                  & $33/39$    & n/a & $55/209$ & $44/53$ \\
+ALPaCA-style        & $8.0/14$   & n/a & $20/78$  & $13/21$ \\
+Meta-LSQ            & $8.8/14$   & n/a & $20/78$  & $13/19$ \\
+Grad.\ descent, deriv. & $12/26$ & $12/33$ & $107/123$ & $118/126$ \\
+ALPaCA-style, deriv. & $2.1/\mathbf{9.1}$ & $\mathbf{10.8}/19$ & $10/61$ & $20/26$ \\
+Meta-LSQ, deriv.    & $\mathbf{1.6}/9.6$ & $10.9/19$ & $\mathbf{9.3}/61$ & $21/27$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:ares-robust} changes one thing about the machine at a time. When the
+derivatives come from an imperfect model both surrogates end near $11$\,\textmu m,
+worse than Meta-LSQ from values alone ($8.8$\,\textmu m on the same trials) and only
+slightly ahead of gradient descent. Under noise and a finite screen the surrogates
+with derivatives stay the most accurate by the median and from values alone match
+the agent, but their means are about twice the agent's, because in a few trials the
+beam leaves the screen and the loop does not bring it back (four trials for Meta-LSQ
+from values, with a mean of $25$\,\textmu m over the other 146). Hysteresis favours
+the agent, which moves each magnet steadily, whereas the surrogate loop reverses a
+quadrupole about 240 times per run against 8 times for the agent. It hurts the
+surrogates most when they use derivatives from a model that does not know about it.
+
+The reversals also cost time on a machine. The agent removes $95\%$ of the starting
+error in 8 measurements and Meta-LSQ with derivatives in 9, and $99\%$ in 39 and 16.
+Assuming a 1\,s readout, a 10\,s ramp over a magnet's full range, 1\,s settling and
+a 30\,s hysteresis cycle before every move that reverses a quadrupole, the agent
+reaches $95\%$ in $2.2$ minutes and Meta-LSQ in $3.3$, and $99\%$ in $4.1$ and $6.6$
+minutes (medians); without the cycle Meta-LSQ needs $0.6$ minutes for $99\%$.
+
+DESY's trials ask for beam sizes of at most $0.5$\,mm. On their simulated grid of targets over
+the full range of the environment (sizes up to $2$\,mm), for which they published the
+final beams of the agent and of the Bayesian optimisation, the same values-only loops
+end at a median of $7.3$\,\textmu m, against $14.4$ for the agent and $41.9$ for the
+Bayesian optimisation. The agent is level with the surrogates below $0.5$\,mm, and its
+error grows to $278$\,\textmu m for the largest targets, where the surrogates stay near
+$8$\,\textmu m (Table~\ref{tab:ares-grid}). The published agent is scored on the last
+beam of its run and the surrogates on their best setting. Scored on its best setting
+in our own run, the agent is ahead of Meta-LSQ below $0.5$\,mm and behind it in the
+other bands (App.~\ref{app:ares}).
+
+\begin{table}[tb]
+\centering
+\caption{Simulated tuning on DESY's grid of targets by the larger target beam size:
+error after 150 measurements (\textmu m, median / mean), 300 targets per band.
+Agent and BO from the final beams DESY published, ALPaCA is the ALPaCA-style
+model. The last row weights the bands by their share of the grid.}
+\label{tab:ares-grid}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrr}
+\toprule
+size (mm) & share & agent & BO & ALPaCA & Meta-LSQ \\
+\midrule
+below $0.5$ & $49\%$ & $6.7/10$   & $29/46$   & $6.5/7.5$ & $6.6/8.9$ \\
+$0.5$--$1$  & $23\%$ & $18/152$   & $49/80$   & $7.7/11$  & $7.7/12$ \\
+$1$--$1.5$  & $9\%$  & $69/258$   & $109/147$ & $7.9/8.6$ & $7.9/8.4$ \\
+$1.5$--$2$  & $19\%$ & $278/1222$ & $189/236$ & $8.3/21$  & $8.3/21$ \\
+\midrule
+whole grid  &        & $14/295$   & $42/99$   & $7.3/11$  & $7.3/12$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{The Contribution of the Derivative Rows}
+\label{sec:exp-mechanism}
 
 Figure~\ref{fig:mechanism}a and~b repeat the analysis of Sec.~\ref{sec:mechanism} for the
 meta-learned solve on held-out tasks. With derivative rows the query error falls for
@@ -1336,55 +1415,15 @@ not tuned, whereas Meta-LSQ's settings come from earlier development on this tas
 and the development tasks were drawn from ranges we chose after looking at DESY's
 trials. The agent and the Bayesian optimisation use measurements only.
 
-\paragraph{Time to tune.} The agent removes $95\%$ of the starting error in 8
-measurements and Meta-LSQ with derivatives in 9, and $99\%$ in 39 and 16. On a
-machine each measurement also costs magnet moves, and the surrogate loop reverses a
-quadrupole about 240 times per run against 8 for the agent. Assuming a 1\,s
-readout, a 10\,s ramp over a magnet's full range, 1\,s settling and a 30\,s
-hysteresis cycle before every move that reverses a quadrupole, the agent reaches $95\%$ in $2.2$
-minutes and Meta-LSQ in $3.3$, and $99\%$ in $4.1$ and $6.6$ minutes (medians);
-without the cycle Meta-LSQ needs $0.6$ minutes for $99\%$.
-
-\begin{table}[tb]
-\centering
-\caption{Robustness on the first 150 ARES trials: error after 150 measurements
-(\textmu m, median / mean), every method's settings unchanged. ``Imperf.'':
-derivatives from a model without misalignments and with the incoming beam's sizes
-and divergences off by up to $20\%$ (position by up to $0.2$\,mm, angle by
-$20$\,\textmu rad, energy by $2\%$). ``Noise'': DESY's noise model ($5\%$ of each
-parameter plus $5$\,\textmu m) on the readings and the real screen size, with exact
-derivatives. ``Hyster.'': each quadrupole lags its
-setting by $1\%$ of its range against its last direction of motion.}
-\label{tab:ares-robust}
-\scriptsize
-\setlength{\tabcolsep}{1.5pt}
-\begin{tabular}{lrrrr}
-\toprule
-method & nominal & imperf. & noise & hyster. \\
-\midrule
-RL agent            & $4.5/17$   & n/a & $22/\mathbf{34}$  & $\mathbf{8.7}/\mathbf{18}$ \\
-BO                  & $33/39$    & n/a & $55/209$ & $44/53$ \\
-ALPaCA-style        & $8.0/14$   & n/a & $20/78$  & $13/21$ \\
-Meta-LSQ            & $8.8/14$   & n/a & $20/78$  & $13/19$ \\
-Grad.\ descent, deriv. & $12/26$ & $12/33$ & $107/123$ & $118/126$ \\
-ALPaCA-style, deriv. & $2.1/\mathbf{9.1}$ & $\mathbf{10.8}/19$ & $10/61$ & $20/26$ \\
-Meta-LSQ, deriv.    & $\mathbf{1.6}/9.6$ & $10.9/19$ & $\mathbf{9.3}/61$ & $21/27$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Robustness.} Table~\ref{tab:ares-robust} changes one thing about the
-machine at a time. Under noise and the finite screen the surrogates with
-derivatives stay the most accurate by the median and from values alone match the
-agent, but their means are about twice the agent's. That comes from a few trials in
-which the beam is off the screen and the loop, which drops empty readings from its
-fits and keeps sampling around its last setting, does not bring it back (four for
-Meta-LSQ from values, with a mean of $25$\,\textmu m over the other 146 trials).
-Hysteresis favours the agent, which moves each magnet steadily, and hurts the
-surrogates most when they use derivatives from a model that does not know about it.
-An imperfect model removes the benefit of the derivatives and leaves the surrogates
-only slightly ahead of gradient descent, which itself breaks down under noise and
-hysteresis. Figure~\ref{fig:ares-screens} shows one nominal trial.
+\paragraph{Robustness.} In Table~\ref{tab:ares-robust} the imperfect model has no
+misalignments, and its incoming beam has sizes and divergences off by up to $20\%$,
+position by up to $0.2$\,mm, angle by $20$\,\textmu rad and energy by $2\%$. The
+noise scenario puts DESY's noise model ($5\%$ of each parameter plus $5$\,\textmu m)
+on the readings and uses the real screen size, with exact derivatives. Under
+hysteresis each quadrupole lags its setting by $1\%$ of its range against its last
+direction of motion. In the trials that lose the beam under noise, the loop drops
+the empty readings from its fits and keeps sampling around its last setting.
+Gradient descent breaks down under noise and hysteresis.
 
 \paragraph{Targets over the full range.} DESY's 300 trials ask for beam sizes of at
 most $0.5$\,mm, while their environment allows up to $2$\,mm. DESY also ran the
@@ -1401,40 +1440,6 @@ agent reaches $5.5$, $15$, $34$ and $185$\,\textmu m, ahead of Meta-LSQ in the f
 band (Meta-LSQ closer on $43\%$) and behind it on $82\%$, $95\%$ and $97\%$ of the
 targets in the others. The grid has one incoming beam, and we do not know on which
 targets the agent was trained.
-
-\begin{table}[tb]
-\centering
-\caption{Simulated tuning on DESY's grid of targets by the larger target beam size:
-error after 150 measurements (\textmu m, median / mean), 300 targets per band.
-Agent and BO from the final beams DESY published. The last row weights the bands
-by their share of the grid.}
-\label{tab:ares-grid}
-\scriptsize
-\setlength{\tabcolsep}{1.5pt}
-\begin{tabular}{lrrrrr}
-\toprule
-size (mm) & share & RL agent & BO & ALPaCA-style & Meta-LSQ \\
-\midrule
-below $0.5$ & $49\%$ & $6.7/10$   & $29/46$   & $6.5/7.5$ & $6.6/8.9$ \\
-$0.5$--$1$  & $23\%$ & $18/152$   & $49/80$   & $7.7/11$  & $7.7/12$ \\
-$1$--$1.5$  & $9\%$  & $69/258$   & $109/147$ & $7.9/8.6$ & $7.9/8.4$ \\
-$1.5$--$2$  & $19\%$ & $278/1222$ & $189/236$ & $8.3/21$  & $8.3/21$ \\
-\midrule
-whole grid  &        & $14/295$   & $42/99$   & $7.3/11$  & $7.3/12$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure*}[tb]
-\centering
-\includegraphics[width=\textwidth]{figures/ares_screens.png}
-\caption{The simulated ARES screen on the trial where Meta-LSQ with derivatives
-ends closest to its median, at the best setting after 1, 10, 20, 50 and 150
-measurements; the dashed ellipse is the target ($2\sigma$). The last column shows
-the final beam (solid) against the target with the differences magnified five
-times.}
-\label{fig:ares-screens}
-\end{figure*}
 
 \section{Protocol and Further Results}
 \label{app:details}
