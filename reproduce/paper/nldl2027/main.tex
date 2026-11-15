@@ -557,12 +557,14 @@ worse, so they are no substitute for measured derivatives (App.~\ref{app:real}).
 
 \begin{figure*}[tb]
 \centering
-\includegraphics[width=\textwidth]{figures/ares_screens.png}
-\caption{The simulated ARES screen on the trial where Meta-LSQ with derivatives
-ends closest to its median, at the best setting after 1, 10, 20, 50 and 150
-measurements; the dashed ellipse is the target ($2\sigma$). The last column shows
-the final beam (solid) against the target with the differences magnified five
-times.}
+\input{figures/ares_screens/ares_screens.tex}
+\caption{Tuning on the trial where Meta-LSQ with derivatives ends closest to its
+median. Top: the beamline to scale (quadrupoles as lenses that focus or defocus in
+$x$, steerers as boxes marked with the plane of their kick and widened) and the
+loop of the surrogate methods. Below: the simulated screen at the best setting
+after $n$ measurements with the mean absolute error of the four beam parameters;
+the dashed ellipse is the target ($2\sigma$). Last column: the final beam (solid)
+against the target, differences magnified five times.}
 \label{fig:ares-screens}
 \end{figure*}
 
@@ -667,14 +669,12 @@ the agent, but their means are about twice the agent's, because in a few trials 
 beam leaves the screen and the loop does not bring it back (four trials for Meta-LSQ
 from values, with a mean of $25$\,\textmu m over the other 146). Hysteresis favours
 the agent, which moves each magnet steadily, whereas the surrogate loop reverses a
-quadrupole about 240 times per run against 8 times for the agent. It hurts the
-surrogates most when they use derivatives from a model that does not know about it.
+quadrupole about 240 times per run against 8 times for the agent.
 
-The reversals also cost time on a machine. The agent removes $95\%$ of the starting
-error in 8 measurements and Meta-LSQ with derivatives in 9, and $99\%$ in 39 and 16.
-Assuming a 1\,s readout, a 10\,s ramp over a magnet's full range, 1\,s settling and
-a 30\,s hysteresis cycle before every move that reverses a quadrupole, the agent
-reaches $95\%$ in $2.2$ minutes and Meta-LSQ in $3.3$, and $99\%$ in $4.1$ and $6.6$
+The reversals also cost time on a machine. Assuming a 1\,s readout, a 10\,s ramp
+over a magnet's full range, 1\,s settling and a 30\,s hysteresis cycle before every
+move that reverses a quadrupole, the agent removes $95\%$ of the starting error in
+$2.2$ minutes and Meta-LSQ with derivatives in $3.3$, and $99\%$ in $4.1$ and $6.6$
 minutes (medians); without the cycle Meta-LSQ needs $0.6$ minutes for $99\%$.
 
 DESY's trials ask for beam sizes of at most $0.5$\,mm. On their simulated grid of targets over
@@ -1423,19 +1423,18 @@ on the readings and uses the real screen size, with exact derivatives. Under
 hysteresis each quadrupole lags its setting by $1\%$ of its range against its last
 direction of motion. In the trials that lose the beam under noise, the loop drops
 the empty readings from its fits and keeps sampling around its last setting.
-Gradient descent breaks down under noise and hysteresis.
+Hysteresis hurts the surrogates most when they use derivatives from a model that
+does not know about it, and gradient descent breaks down under noise and
+hysteresis. Counted in measurements, the agent removes $95\%$ of the starting
+error in 8 and Meta-LSQ with derivatives in 9, and $99\%$ in 39 and 16.
 
-\paragraph{Targets over the full range.} DESY's 300 trials ask for beam sizes of at
-most $0.5$\,mm, while their environment allows up to $2$\,mm. DESY also ran the
-agent and the Bayesian optimisation in simulation on a grid of $160{,}000$ targets
-over the full range (positions within $\pm2$\,mm, sizes from $20$\,\textmu m to
-$2$\,mm, the incoming beam and misalignments of their first trial) and published
-every final beam. We drew 300 targets from each of four bands of the larger target
-size and ran the values-only loops unchanged (Table~\ref{tab:ares-grid}), giving
-them the target shifted by DESY's screen offset. Meta-LSQ is closer to the target
-than the agent on $53\%$, $89\%$, $98\%$ and $99\%$ of the targets of the four bands.
-The agent is scored on the last beam of its run, as published, and the other
-methods on the best setting found. Run by us and scored on its best setting, the
+\paragraph{Targets over the full range.} DESY's grid has $160{,}000$ targets
+(positions within $\pm2$\,mm, sizes from $20$\,\textmu m to $2$\,mm, the incoming
+beam and misalignments of their first trial). We drew 300 targets from each of four
+bands of the larger target size and ran the values-only loops unchanged
+(Table~\ref{tab:ares-grid}), giving them the target shifted by DESY's screen offset.
+Meta-LSQ is closer to the target than the agent on $53\%$, $89\%$, $98\%$ and $99\%$
+of the targets of the four bands. Run by us and scored on its best setting, the
 agent reaches $5.5$, $15$, $34$ and $185$\,\textmu m, ahead of Meta-LSQ in the first
 band (Meta-LSQ closer on $43\%$) and behind it on $82\%$, $95\%$ and $97\%$ of the
 targets in the others. The grid has one incoming beam, and we do not know on which

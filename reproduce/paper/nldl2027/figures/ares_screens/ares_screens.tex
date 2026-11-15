@@ -1,0 +1,159 @@
+% Written by examples/figure_ares_screen.py. Lengths are in hundredths of \textwidth.
+\providecommand{\aresdir}{figures/ares_screens}
+\begin{tikzpicture}[x=0.01\textwidth, y=0.01\textwidth, line cap=round,
+    every node/.style={inner sep=0pt, outer sep=0pt, font=\scriptsize}]
+\definecolor{aresbeam}{HTML}{B03030}\definecolor{aresquad}{HTML}{B9CCE8}
+\definecolor{aressteer}{HTML}{BFE0C4}\definecolor{arestarget}{HTML}{7FDCFF}
+\definecolor{aresfinal}{HTML}{FFB000}
+\draw[aresbeam, line width=0.8pt] (0.5,-7.2) -- (53.00,-7.2);
+\draw[aresbeam, line width=0.8pt, -latex] (0.5,-7.2) -- (4.6,-7.2);
+\node[anchor=south west, text=aresbeam, font=\footnotesize] at (0.5,-6.20) {$e^-$ beam};
+\filldraw[fill=aresquad, draw=black, line width=0.4pt] (12.31,-11.0) to[bend right=34] (12.31,-3.4000000000000004) to[bend right=34] (12.31,-11.0) -- cycle;
+\node[anchor=base, font=\footnotesize] at (12.31,-2.30) {$Q_1$};
+\filldraw[fill=aresquad, draw=black, line width=0.4pt] (23.27,-11.0) -- (26.07,-11.0) to[bend left=24] (26.07,-3.4000000000000004) -- (23.27,-3.4000000000000004) to[bend left=24] (23.27,-11.0) -- cycle;
+\node[anchor=base, font=\footnotesize] at (24.67,-2.30) {$Q_2$};
+\filldraw[fill=aressteer, draw=black, line width=0.4pt] (29.70,-9.40) rectangle (32.00,-5.00);
+\draw[line width=0.5pt, latex-latex] (30.85,-10.90) -- (30.85,-3.50);
+\node[anchor=base, font=\footnotesize] at (30.85,-2.30) {$C_V$};
+\filldraw[fill=aresquad, draw=black, line width=0.4pt] (37.04,-11.0) to[bend right=34] (37.04,-3.4000000000000004) to[bend right=34] (37.04,-11.0) -- cycle;
+\node[anchor=base, font=\footnotesize] at (37.04,-2.30) {$Q_3$};
+\filldraw[fill=aressteer, draw=black, line width=0.4pt] (41.51,-9.40) rectangle (43.81,-5.00);
+\filldraw[fill=white, draw=black, line width=0.4pt] (42.66,-7.2) circle[radius=0.8];
+\fill (42.66,-7.2) circle[radius=0.25];
+\node[anchor=base, font=\footnotesize] at (42.66,-2.30) {$C_H$};
+\fill[black!85] (53.00,-11.80) rectangle (53.90,-2.60);
+\node[anchor=base, font=\footnotesize] at (53.45,-1.70) {screen};
+\draw[line width=0.5pt, |-|] (7.00,-12.80) -- (18.24,-12.80);
+\node[anchor=west] at (19.14,-12.80) {0.5\,m};
+\node[draw=black!55, fill=black!4, rounded corners=1.5pt, line width=0.4pt, align=center, text width=0.118\textwidth, minimum width=0.126\textwidth, minimum height=0.085\textwidth] (m) at (65.3,-7.80) {\textbf{measure}\\the beam on\\the screen};
+\node[draw=black!55, fill=black!4, rounded corners=1.5pt, line width=0.4pt, align=center, text width=0.118\textwidth, minimum width=0.126\textwidth, minimum height=0.085\textwidth] (f) at (79.5,-7.80) {\textbf{fit}\\one ridge solve\\per parameter};
+\node[draw=black!55, fill=black!4, rounded corners=1.5pt, line width=0.4pt, align=center, text width=0.118\textwidth, minimum width=0.126\textwidth, minimum height=0.085\textwidth] (p) at (93.7,-7.80) {\textbf{propose}\\next setting\\from the fits};
+\draw[-latex, line width=0.5pt] (m.east) -- (f.west);
+\draw[-latex, line width=0.5pt] (f.east) -- (p.west);
+\draw[-latex, line width=0.5pt] (p.north) to[bend right=22] node[pos=0.5, above=1.2pt] {repeat for each of the 150 measurements} (m.north);
+\node[anchor=base, font=\footnotesize] at (50.00,-14.90) {best setting found after $n$ measurements};
+\node[anchor=base, font=\footnotesize] at (91.40,-14.90) {final beam,};
+\node[anchor=base, font=\footnotesize] at (23.20,-17.60) {$n=1$};
+\node[anchor=base, font=\footnotesize] at (36.60,-17.60) {$n=10$};
+\node[anchor=base, font=\footnotesize] at (50.00,-17.60) {$n=20$};
+\node[anchor=base, font=\footnotesize] at (63.40,-17.60) {$n=50$};
+\node[anchor=base, font=\footnotesize] at (76.80,-17.60) {$n=150$};
+\node[anchor=base, font=\footnotesize] at (91.40,-17.60) {differences $\times5$};
+\node[anchor=east, align=right, font=\footnotesize] at (15.7,-23.76) {\textbf{RL agent}\\[-1pt]{\scriptsize values}};
+\node[anchor=north west] at (17.00,-18.80) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_0_0.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (23.20,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (23.20,-30.57) {525\,\textmu m};
+\node[anchor=north west] at (30.40,-18.80) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_0_1.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (36.60,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (36.60,-30.57) {8.5\,\textmu m};
+\node[anchor=north west] at (43.80,-18.80) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_0_2.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (50.00,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (50.00,-30.57) {3.9\,\textmu m};
+\node[anchor=north west] at (57.20,-18.80) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_0_3.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (63.40,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (63.40,-30.57) {3.9\,\textmu m};
+\node[anchor=north west] at (70.60,-18.80) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_0_4.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (76.80,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (76.80,-30.57) {3.9\,\textmu m};
+\begin{scope}
+\clip (85.20,-28.72) rectangle (97.60,-18.80);
+\fill[black] (85.20,-28.72) rectangle (97.60,-18.80);
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (91.40,-23.76) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, line width=0.8pt] (91.14,-23.81) ellipse[x radius=2.367, y radius=3.165];
+\draw[aresfinal, line width=0.6pt] (90.54,-23.81) -- (91.74,-23.81) (91.14,-24.41) -- (91.14,-23.21);
+\end{scope}
+\node[anchor=east, align=right, font=\footnotesize] at (15.7,-36.28) {\textbf{BO}\\[-1pt]{\scriptsize values}};
+\node[anchor=north west] at (17.00,-31.32) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_1_0.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (23.20,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (23.20,-43.09) {525\,\textmu m};
+\node[anchor=north west] at (30.40,-31.32) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_1_1.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (36.60,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, -latex, line width=0.7pt] (33.81,-36.41) -- (31.34,-36.51);
+\node[anchor=south west, text=aresfinal] at (31.10,-40.54) {off view};
+\node[anchor=base] at (36.60,-43.09) {395\,\textmu m};
+\node[anchor=north west] at (43.80,-31.32) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_1_2.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (50.00,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (50.00,-43.09) {298\,\textmu m};
+\node[anchor=north west] at (57.20,-31.32) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_1_3.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (63.40,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (63.40,-43.09) {70.1\,\textmu m};
+\node[anchor=north west] at (70.60,-31.32) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_1_4.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (76.80,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (76.80,-43.09) {34.8\,\textmu m};
+\begin{scope}
+\clip (85.20,-41.24) rectangle (97.60,-31.32);
+\fill[black] (85.20,-41.24) rectangle (97.60,-31.32);
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (91.40,-36.28) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, line width=0.8pt] (92.29,-37.60) ellipse[x radius=4.420, y radius=4.443];
+\draw[aresfinal, line width=0.6pt] (91.69,-37.60) -- (92.89,-37.60) (92.29,-38.20) -- (92.29,-37.00);
+\end{scope}
+\node[anchor=east, align=right, font=\footnotesize] at (15.7,-48.80) {\textbf{Meta-LSQ}\\[-1pt]{\scriptsize values}};
+\node[anchor=north west] at (17.00,-43.84) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_2_0.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (23.20,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (23.20,-55.61) {525\,\textmu m};
+\node[anchor=north west] at (30.40,-43.84) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_2_1.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (36.60,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (36.60,-55.61) {64.4\,\textmu m};
+\node[anchor=north west] at (43.80,-43.84) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_2_2.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (50.00,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (50.00,-55.61) {27.3\,\textmu m};
+\node[anchor=north west] at (57.20,-43.84) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_2_3.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (63.40,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (63.40,-55.61) {12.3\,\textmu m};
+\node[anchor=north west] at (70.60,-43.84) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_2_4.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (76.80,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (76.80,-55.61) {8.3\,\textmu m};
+\begin{scope}
+\clip (85.20,-53.76) rectangle (97.60,-43.84);
+\fill[black] (85.20,-53.76) rectangle (97.60,-43.84);
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (91.40,-48.80) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, line width=0.8pt] (91.22,-48.94) ellipse[x radius=3.100, y radius=2.477];
+\draw[aresfinal, line width=0.6pt] (90.62,-48.94) -- (91.82,-48.94) (91.22,-49.54) -- (91.22,-48.34);
+\end{scope}
+\node[anchor=east, align=right, font=\footnotesize] at (15.7,-61.32) {\textbf{ALPaCA-style}\\[-1pt]{\scriptsize + derivatives}};
+\node[anchor=north west] at (17.00,-56.36) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_3_0.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (23.20,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (23.20,-68.13) {525\,\textmu m};
+\node[anchor=north west] at (30.40,-56.36) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_3_1.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (36.60,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (36.60,-68.13) {18.2\,\textmu m};
+\node[anchor=north west] at (43.80,-56.36) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_3_2.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (50.00,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (50.00,-68.13) {7.2\,\textmu m};
+\node[anchor=north west] at (57.20,-56.36) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_3_3.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (63.40,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (63.40,-68.13) {3.9\,\textmu m};
+\node[anchor=north west] at (70.60,-56.36) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_3_4.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (76.80,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (76.80,-68.13) {2.2\,\textmu m};
+\begin{scope}
+\clip (85.20,-66.28) rectangle (97.60,-56.36);
+\fill[black] (85.20,-66.28) rectangle (97.60,-56.36);
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (91.40,-61.32) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, line width=0.8pt] (91.47,-61.31) ellipse[x radius=2.348, y radius=3.243];
+\draw[aresfinal, line width=0.6pt] (90.87,-61.31) -- (92.07,-61.31) (91.47,-61.91) -- (91.47,-60.71);
+\end{scope}
+\node[anchor=east, align=right, font=\footnotesize] at (15.7,-73.84) {\textbf{Meta-LSQ}\\[-1pt]{\scriptsize + derivatives}};
+\node[anchor=north west] at (17.00,-68.88) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_4_0.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (23.20,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (23.20,-80.65) {525\,\textmu m};
+\node[anchor=north west] at (30.40,-68.88) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_4_1.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (36.60,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (36.60,-80.65) {11.9\,\textmu m};
+\node[anchor=north west] at (43.80,-68.88) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_4_2.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (50.00,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (50.00,-80.65) {8.6\,\textmu m};
+\node[anchor=north west] at (57.20,-68.88) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_4_3.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (63.40,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (63.40,-80.65) {1.6\,\textmu m};
+\node[anchor=north west] at (70.60,-68.88) {\includegraphics[width=0.1240\textwidth, height=0.0992\textwidth]{\aresdir/screen_4_4.png}};
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (76.80,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\node[anchor=base] at (76.80,-80.65) {1.6\,\textmu m};
+\begin{scope}
+\clip (85.20,-78.80) rectangle (97.60,-68.88);
+\fill[black] (85.20,-78.80) rectangle (97.60,-68.88);
+\draw[arestarget, dash pattern=on 1.7pt off 1.3pt, line width=0.6pt] (91.40,-73.84) ellipse[x radius=2.541, y radius=3.100];
+\draw[aresfinal, line width=0.8pt] (91.36,-73.87) ellipse[x radius=2.759, y radius=3.090];
+\draw[aresfinal, line width=0.6pt] (90.76,-73.87) -- (91.96,-73.87) (91.36,-74.47) -- (91.36,-73.27);
+\end{scope}
+\end{tikzpicture}

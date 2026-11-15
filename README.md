@@ -130,7 +130,7 @@ pip install cheetah-accelerator scikit-learn scipy botorch matplotlib
 | `beam_robust.py`, `beam_noise_tail.py` | the robustness scenarios (Table 5) and the trials with a lost beam |
 | `ares_agent_check.py` | our copy of DESY's agent against every step of their published runs, and its error with and without clipped magnets |
 | `ares_grid.py`, `desy_runs.py` | DESY's grid of targets over the full range (Table 6), read from their Zenodo record 7853721 |
-| `figure_ares_screen.py` | Fig. 2 |
+| `figure_ares_screen.py` | Fig. 2: writes the TikZ picture that the paper inputs and one PNG per screen |
 
 `examples/results/` holds the per-trial records of these runs (the larger ones
 gzipped) and the trained surrogates, and `reproduce/experiments/ares_summary.py`
