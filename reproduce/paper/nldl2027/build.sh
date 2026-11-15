@@ -11,8 +11,9 @@ pdflatex -interaction=nonstopmode main.tex >/dev/null 2>&1 || true
 pdflatex -interaction=nonstopmode main.tex >/dev/null 2>&1 || true
 printf 'pages:     %s (whole PDF, appendix included)\n' "$(pdfinfo main.pdf | awk '/^Pages/{print $2}')"
 # NLDL camera ready: the main text, up to the end of the conclusions, must end
-# on page 9 or earlier. \label{main:end} sits after the Reproducibility paragraph.
+# on page 9 or earlier. \label{main:end} sits at the end of the Discussion.
 printf 'main ends: page %s (limit 9)\n' "$(sed -n 's/.*newlabel{main:end}{{[^}]*}{\([0-9]*\)}.*/\1/p' main.aux)"
+printf 'disclosure ends: page %s (limit 9)\n' "$(sed -n 's/.*newlabel{disclosure:end}{{[^}]*}{\([0-9]*\)}.*/\1/p' main.aux)"
 printf 'errors:    %s\n' "$(grep -cE '^!' main.log || true)"
 printf 'overfull:  %s\n' "$(grep -c Overfull main.log || true)"
 printf 'undefined: %s\n' "$(grep -ci undefined main.log || true)"

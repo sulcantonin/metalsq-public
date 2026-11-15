@@ -1,0 +1,354 @@
+{
+ "n_trials": 300,
+ "final": {
+  "RL agent": {
+   "median": 4.445911760589999,
+   "mean": 17.06132792429335
+  },
+  "BO (DESY)": {
+   "median": 30.721476212169833,
+   "mean": 37.97382229001829
+  },
+  "Meta-LSQ, machine": {
+   "median": 7.845203140487648,
+   "mean": 13.237261699226904
+  },
+  "ALPaCA-style, machine": {
+   "median": 7.497634046355034,
+   "mean": 13.196215320767703
+  },
+  "gradient descent, twin": {
+   "median": 14.200221730005614,
+   "mean": 27.71207840084379
+  },
+  "Meta-LSQ, twin": {
+   "median": 1.6174861799682194,
+   "mean": 9.621292954084089
+  },
+  "ALPaCA-style, twin": {
+   "median": 1.940367625148776,
+   "mean": 9.762219834022051
+  }
+ },
+ "closer": {
+  "Meta-LSQ, twin": 0.5766666666666667,
+  "Meta-LSQ, machine": 0.4533333333333333
+ },
+ "levels": {
+  "RL agent|0.90": {
+   "steps": 7.0,
+   "reached": 0.9166666666666666
+  },
+  "RL agent|0.95": {
+   "steps": 8.0,
+   "reached": 0.8466666666666667
+  },
+  "RL agent|0.99": {
+   "steps": 39.0,
+   "reached": 0.6233333333333333
+  },
+  "BO (DESY)|0.90": {
+   "steps": 32.5,
+   "reached": 0.8666666666666667
+  },
+  "BO (DESY)|0.95": {
+   "steps": 79.5,
+   "reached": 0.5933333333333334
+  },
+  "BO (DESY)|0.99": {
+   "steps": null,
+   "reached": 0.006666666666666667
+  },
+  "Meta-LSQ, machine|0.90": {
+   "steps": 11.0,
+   "reached": 0.98
+  },
+  "Meta-LSQ, machine|0.95": {
+   "steps": 14.0,
+   "reached": 0.92
+  },
+  "Meta-LSQ, machine|0.99": {
+   "steps": null,
+   "reached": 0.44333333333333336
+  },
+  "ALPaCA-style, machine|0.90": {
+   "steps": 12.0,
+   "reached": 0.9666666666666667
+  },
+  "ALPaCA-style, machine|0.95": {
+   "steps": 15.0,
+   "reached": 0.9133333333333333
+  },
+  "ALPaCA-style, machine|0.99": {
+   "steps": null,
+   "reached": 0.46
+  },
+  "gradient descent, twin|0.90": {
+   "steps": 26.0,
+   "reached": 0.8666666666666667
+  },
+  "gradient descent, twin|0.95": {
+   "steps": 61.0,
+   "reached": 0.7233333333333334
+  },
+  "gradient descent, twin|0.99": {
+   "steps": null,
+   "reached": 0.37333333333333335
+  },
+  "Meta-LSQ, twin|0.90": {
+   "steps": 8.0,
+   "reached": 0.9833333333333333
+  },
+  "Meta-LSQ, twin|0.95": {
+   "steps": 9.0,
+   "reached": 0.9233333333333333
+  },
+  "Meta-LSQ, twin|0.99": {
+   "steps": 16.0,
+   "reached": 0.79
+  },
+  "ALPaCA-style, twin|0.90": {
+   "steps": 8.0,
+   "reached": 0.9766666666666667
+  },
+  "ALPaCA-style, twin|0.95": {
+   "steps": 9.0,
+   "reached": 0.9233333333333333
+  },
+  "ALPaCA-style, twin|0.99": {
+   "steps": 20.0,
+   "reached": 0.7833333333333333
+  }
+ },
+ "reversals": {
+  "RL agent": 8.0,
+  "BO (DESY)": 232.0,
+  "Meta-LSQ, machine": 241.0,
+  "ALPaCA-style, machine": 240.0,
+  "gradient descent, twin": 315.5,
+  "Meta-LSQ, twin": 244.0,
+  "ALPaCA-style, twin": 246.0
+ },
+ "minutes": {
+  "RL agent|0.90": {
+   "cycle0": 0.2569975,
+   "cycle30": 1.7237776666666664
+  },
+  "RL agent|0.95": {
+   "cycle0": 0.3042100833333333,
+   "cycle30": 2.21958925
+  },
+  "RL agent|0.99": {
+   "cycle0": 1.3394815416666668,
+   "cycle30": 4.125523291666667
+  },
+  "BO (DESY)|0.90": {
+   "cycle0": 1.2375443333333331,
+   "cycle30": 14.224897916666666
+  },
+  "BO (DESY)|0.95": {
+   "cycle0": 3.0182067916666666,
+   "cycle30": 36.4424755
+  },
+  "BO (DESY)|0.99": {
+   "cycle0": null,
+   "cycle30": null
+  },
+  "Meta-LSQ, machine|0.90": {
+   "cycle0": 0.4244599583333333,
+   "cycle30": 4.381249625000001
+  },
+  "Meta-LSQ, machine|0.95": {
+   "cycle0": 0.5608807916666667,
+   "cycle30": 5.593643375000001
+  },
+  "Meta-LSQ, machine|0.99": {
+   "cycle0": null,
+   "cycle30": null
+  },
+  "ALPaCA-style, machine|0.90": {
+   "cycle0": 0.4654240833333334,
+   "cycle30": 4.4393086666666655
+  },
+  "ALPaCA-style, machine|0.95": {
+   "cycle0": 0.6009634166666666,
+   "cycle30": 6.089955458333334
+  },
+  "ALPaCA-style, machine|0.99": {
+   "cycle0": null,
+   "cycle30": null
+  },
+  "gradient descent, twin|0.90": {
+   "cycle0": 0.9462807083333333,
+   "cycle30": 11.724962958333332
+  },
+  "gradient descent, twin|0.95": {
+   "cycle0": 2.1297537083333333,
+   "cycle30": 28.562932625000002
+  },
+  "gradient descent, twin|0.99": {
+   "cycle0": null,
+   "cycle30": null
+  },
+  "Meta-LSQ, twin|0.90": {
+   "cycle0": 0.31588358333333333,
+   "cycle30": 2.8363304583333333
+  },
+  "Meta-LSQ, twin|0.95": {
+   "cycle0": 0.35587362499999997,
+   "cycle30": 3.34972825
+  },
+  "Meta-LSQ, twin|0.99": {
+   "cycle0": 0.6265248333333333,
+   "cycle30": 6.584458875000001
+  },
+  "ALPaCA-style, twin|0.90": {
+   "cycle0": 0.31826208333333333,
+   "cycle30": 2.8523274583333333
+  },
+  "ALPaCA-style, twin|0.95": {
+   "cycle0": 0.3571189166666667,
+   "cycle30": 3.35757775
+  },
+  "ALPaCA-style, twin|0.99": {
+   "cycle0": 0.7842317916666668,
+   "cycle30": 8.191196083333335
+  }
+ },
+ "robust": {
+  "nominal": {
+   "RL agent": {
+    "median": 4.54125228331171,
+    "mean": 16.961345966391075
+   },
+   "BO (DESY)": {
+    "median": 33.417261664089395,
+    "mean": 39.035716754348854
+   },
+   "Meta-LSQ, machine": {
+    "median": 8.793509143305204,
+    "mean": 13.952624396508696
+   },
+   "ALPaCA-style, machine": {
+    "median": 8.039951266763913,
+    "mean": 14.19983543869338
+   },
+   "gradient descent, twin": {
+    "median": 11.9929912061464,
+    "mean": 26.219486536067198
+   },
+   "Meta-LSQ, twin": {
+    "median": 1.6470429885780316,
+    "mean": 9.632027531994167
+   },
+   "ALPaCA-style, twin": {
+    "median": 2.0643540566640235,
+    "mean": 9.05228419014693
+   }
+  },
+  "twin": {
+   "gradient descent, twin": {
+    "median": 12.468892347974585,
+    "mean": 32.86850605357806
+   },
+   "Meta-LSQ, twin": {
+    "median": 10.929718601249022,
+    "mean": 19.328337208130304
+   },
+   "ALPaCA-style, twin": {
+    "median": 10.778235564951537,
+    "mean": 18.90955525918452
+   }
+  },
+  "noise": {
+   "RL agent": {
+    "median": 22.432114852806386,
+    "mean": 34.09996207985363
+   },
+   "BO (DESY)": {
+    "median": 54.53498085035073,
+    "mean": 208.88231668653043
+   },
+   "Meta-LSQ, machine": {
+    "median": 19.9202938474305,
+    "mean": 78.39333899395741
+   },
+   "ALPaCA-style, machine": {
+    "median": 19.96656881199728,
+    "mean": 78.18254793704764
+   },
+   "gradient descent, twin": {
+    "median": 107.33507909985627,
+    "mean": 123.12360587215356
+   },
+   "Meta-LSQ, twin": {
+    "median": 9.327142997968409,
+    "mean": 60.72422841123452
+   },
+   "ALPaCA-style, twin": {
+    "median": 9.966449151254285,
+    "mean": 61.334997542972694
+   }
+  },
+  "hysteresis": {
+   "RL agent": {
+    "median": 8.661961457792351,
+    "mean": 18.27837455878651
+   },
+   "BO (DESY)": {
+    "median": 43.694115534837835,
+    "mean": 53.11448519647326
+   },
+   "Meta-LSQ, machine": {
+    "median": 12.910077926604902,
+    "mean": 19.173995311137812
+   },
+   "ALPaCA-style, machine": {
+    "median": 13.43288771919525,
+    "mean": 20.668329764114326
+   },
+   "gradient descent, twin": {
+    "median": 117.75007221306092,
+    "mean": 126.01769933209968
+   },
+   "Meta-LSQ, twin": {
+    "median": 20.73413718979073,
+    "mean": 27.152520755483305
+   },
+   "ALPaCA-style, twin": {
+    "median": 19.893064929058028,
+    "mean": 26.18799669861322
+   }
+  },
+  "wide": {
+   "RL agent": {
+    "median": 196.53536233738708,
+    "mean": 232.37010978511597
+   },
+   "BO (DESY)": {
+    "median": 136.40967301852712,
+    "mean": 183.71844422103686
+   },
+   "Meta-LSQ, machine": {
+    "median": 18.503174490289602,
+    "mean": 107.6424372346217
+   },
+   "ALPaCA-style, machine": {
+    "median": 17.751727540271872,
+    "mean": 104.31391089999782
+   },
+   "gradient descent, twin": {
+    "median": 116.93824859923942,
+    "mean": 174.76429648227432
+   },
+   "Meta-LSQ, twin": {
+    "median": 12.431906109466219,
+    "mean": 107.79425553402481
+   },
+   "ALPaCA-style, twin": {
+    "median": 13.512459579797293,
+    "mean": 107.83307698398472
+   }
+  }
+ }
+}

@@ -202,18 +202,26 @@ def fastlsq_predict(xq, W, bb, beta):
 
 def train_fastlsq_meta(n_iters=2000, meta_bs=4, K=10, K_q=10, N=200,
                        sobolev=False, grad_w=1.0, lr=5e-3, seed=SEED, log_every=100,
-                       noise=0.0, dist="normal", nu=3, mu_floor=0.0, grad_noise=None):
+                       noise=0.0, dist="normal", nu=3, mu_floor=0.0, grad_noise=None,
+                       compute_dtype=None):
     """``mu_floor``: lower-clamp the ridge used in the inner solve, and report the
     clamped value. Default 0.0 leaves the original path untouched. With a floor the
     outer loop cannot drive mu into the ill-conditioned regime that makes long
     training runs diverge (see the 50 s cell of the wall-clock table).
-    ``grad_noise``: see sample_tasks; None (default) keeps the original y+dy noise."""
+    ``grad_noise``: see sample_tasks; None (default) keeps the original y+dy noise.
+    ``compute_dtype``: if set (e.g. torch.float64), the basis and every task batch are
+    still drawn in the default float32, so the random draws match a float32 run, and
+    are then cast to this dtype for the solve and the outer parameters. None (default)
+    leaves the original path untouched."""
     torch.manual_seed(seed)
     gen = torch.Generator().manual_seed(seed + 1000)
     Wb, bb = make_basis(N=N, seed=seed, dist=dist, nu=nu)
-    log_sigma = torch.tensor(0.0, requires_grad=True)
-    log_mu = torch.tensor(math.log(1e-4), requires_grad=True)
-    log_gw = torch.tensor(math.log(grad_w), requires_grad=True)
+    cd = compute_dtype or torch.get_default_dtype()
+    if compute_dtype is not None:
+        Wb, bb = Wb.to(cd), bb.to(cd)
+    log_sigma = torch.tensor(0.0, dtype=cd, requires_grad=True)
+    log_mu = torch.tensor(math.log(1e-4), dtype=cd, requires_grad=True)
+    log_gw = torch.tensor(math.log(grad_w), dtype=cd, requires_grad=True)
     params = [log_sigma, log_mu] + ([log_gw] if sobolev else [])
     opt = torch.optim.Adam(params, lr=lr)
 
@@ -221,6 +229,8 @@ def train_fastlsq_meta(n_iters=2000, meta_bs=4, K=10, K_q=10, N=200,
     t0 = time.time()
     for it in range(n_iters):
         xs, ys, dys, xq, yq = sample_tasks(meta_bs, K, K_q, gen, noise=noise, grad_noise=grad_noise)
+        if compute_dtype is not None:
+            xs, ys, dys, xq, yq = (a.to(cd) for a in (xs, ys, dys, xq, yq))
         opt.zero_grad()
         sigma = log_sigma.exp()
         mu = log_mu.exp()

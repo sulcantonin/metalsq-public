@@ -143,8 +143,11 @@ def _teaser_fit(d):
 
 
 def fig_teaser():
-    """Fig. 1: the method on one real task, then what it buys in training time."""
-    from matplotlib.patches import ConnectionPatch
+    """Fig. 1: the method on one real task, then what it buys in training time.
+
+    One colour per kind of information throughout: black for values (and the value
+    rows H), green for slopes (and the slope rows Gamma), red for the fit."""
+    from matplotlib.patches import FancyArrowPatch, Rectangle
     d = _load("teaser.json")
     if d is None:
         return
@@ -153,103 +156,127 @@ def fig_teaser():
     xs = np.asarray(d["support_x"]); ys = np.asarray(d["support_y"])
     dys = np.asarray(d["support_dy"])
     amp = d["shown_task_amplitude"]
-    # the task is a*sin(x + phi); its derivative is recovered from value and slope
     true_d = np.gradient(true, g)
+    C_VAL, C_TRUTH, C_TRUTH_D = "#1a1a1a", "#d4d4d4", "#cfe8cf"
 
-    fig, (a1, a2, a3, a4) = plt.subplots(
-        1, 4, figsize=(WIDE, 2.15),
-        gridspec_kw={"width_ratios": [1.0, 0.92, 1.0, 1.05]})
+    fig = plt.figure(figsize=(WIDE, 1.45))
+    # an empty column between (a) and (b) leaves room for the row labels of (b)
+    gs = fig.add_gridspec(1, 5, width_ratios=[1.0, 0.1, 0.9, 1.0, 1.05], wspace=0.5,
+                          left=0.015, right=0.9, top=0.83, bottom=0.30)
+    a1, a2, a3, a4 = (fig.add_subplot(gs[0, i]) for i in (0, 2, 3, 4))
+
+    def title(ax, letter, text):
+        ax.set_title(r"$\mathbf{(" + letter + r")}$ " + text, fontsize=7.6, loc="left", pad=4)
+
+    def clean(ax):
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.set_yticks([]); ax.grid(False)
+        ax.set_xlim(-5.4, 5.4); ax.set_xticks([-5, 0, 5])
+        ax.set_ylim(-1.25 * amp, 2.15 * amp)
+        ax.set_xlabel("$x$", labelpad=0)
+        ax.tick_params(length=2, pad=1.5)
 
     # (a) the task: ten values, each with its slope
-    a1.plot(g, true, color="#bbbbbb", lw=1.0, ls="--", zorder=1)
+    a1.plot(g, true, color=C_TRUTH, lw=2.6, zorder=1, solid_capstyle="round")
+    h = 0.5
     for x0, y0, s0 in zip(xs, ys, dys):
-        h = 0.45
-        a1.plot([x0 - h, x0 + h], [y0 - s0 * h, y0 + s0 * h], color=C_GRN, lw=1.4,
+        a1.plot([x0 - h, x0 + h], [y0 - s0 * h, y0 + s0 * h], color=C_GRN, lw=1.7,
                 zorder=2, solid_capstyle="round")
-    a1.plot(xs, ys, "o", color="black", ms=3.0, zorder=3)
-    a1.set_xlim(-5.3, 5.3); a1.set_ylim(-1.3 * amp, 1.95 * amp)
-    a1.set_xlabel("$x$", labelpad=1)
-    a1.legend(handles=[plt.Line2D([], [], ls="", marker="o", color="black", ms=3),
-                       plt.Line2D([], [], color=C_GRN, lw=1.4)],
-              labels=["value $y_i$", "slope $g_i$"], ncol=2, frameon=False,
-              fontsize=6, loc="upper center", handlelength=1.2, columnspacing=1.0,
-              borderaxespad=0.1)
-    a1.set_title("(a) support set of one task", fontsize=8)
+    a1.plot(xs, ys, "o", color=C_VAL, ms=3.6, mec="white", mew=0.6, zorder=3)
+    clean(a1)
+    a1.legend(handles=[plt.Line2D([], [], ls="", marker="o", color=C_VAL, ms=3.6,
+                                  mec="white", mew=0.6),
+                       plt.Line2D([], [], color=C_GRN, lw=1.7)],
+              labels=["value", "slope"], ncol=2, frameon=False, fontsize=6.4,
+              loc="upper center", handlelength=1.2, columnspacing=1.2,
+              borderaxespad=0.0, handletextpad=0.4)
+    title(a1, "a", "ten points of one task")
 
-    # (b) the stacked design: value rows over derivative rows, one linear system
-    show = 36
+    # (b) the stacked design: value rows over slope rows, one linear system
+    show = 32
     M = A[:, :show]
-    lim = np.abs(M).max()
+    lim = np.percentile(np.abs(M), 98)
     a2.imshow(M, cmap="RdBu_r", vmin=-lim, vmax=lim, aspect="auto",
-              interpolation="nearest")
-    a2.axhline(9.5, color="black", lw=0.8)
-    a2.set_xticks([]); a2.set_yticks([4.5, 14.5])
-    a2.set_yticklabels([r"$H$", r"$\sqrt{w}\,\Gamma$"], fontsize=7)
-    a2.tick_params(length=0, pad=2)
+              interpolation="nearest", extent=(0, show, 20, 0))
+    a2.axhline(10, color="white", lw=2.0)
+    for spine in a2.spines.values():
+        spine.set_visible(False)
+    a2.set_xticks([]); a2.set_yticks([]); a2.grid(False)
+    for y0, col, lab in ((0, C_VAL, r"$H$"), (10, C_GRN, r"$\sqrt{w}\,\Gamma$")):
+        a2.add_patch(Rectangle((-2.2, y0 + 0.4), 1.2, 9.2, color=col, clip_on=False,
+                               transform=a2.transData))
+        a2.text(-3.0, y0 + 5, lab, color=col, fontsize=7.2, ha="right", va="center")
+    a2.set_xlim(-0.01, show)
     a2.set_xlabel(r"$\beta^\ast = (A^{\!\top}\!A + \mu I)^{-1} A^{\!\top} t$",
-                  labelpad=3, fontsize=7)
-    a2.set_title(r"(b) stacked design $A$", fontsize=8)
+                  labelpad=4, fontsize=7.2)
+    title(a2, "b", "one linear system $A$")
 
-    # (c) the fitted function and its closed-form derivative
-    a3.plot(g, true, color="#bbbbbb", lw=1.0, ls="--", zorder=1)
-    a3.plot(g, true_d, color="#bbbbbb", lw=1.0, ls="--", zorder=1)
-    a3.plot(g, u, color=C_SOB, lw=1.4, zorder=3, label=r"$u_N$")
-    a3.plot(g, du, color=C_GRN, lw=1.4, zorder=3, label=r"$u_N'$")
-    a3.plot(xs, ys, "o", color="black", ms=2.4, zorder=4)
-    a3.set_xlim(-5.3, 5.3); a3.set_ylim(-1.3 * amp, 1.95 * amp)
-    a3.set_xlabel("$x$", labelpad=1)
-    a3.legend(frameon=False, fontsize=6, loc="upper center", ncol=2, handlelength=1.2,
-              columnspacing=1.0, borderaxespad=0.1)
-    a3.set_title(r"(c) fit $u_N$ and derivative $u_N'$", fontsize=8)
-
-    for ax in (a1, a3):
-        ax.set_yticks([]); ax.grid(alpha=0.16, lw=0.4)
+    # (c) the fitted function and its closed-form derivative, over the truth
+    a3.plot(g, true, color=C_TRUTH, lw=3.2, zorder=1, solid_capstyle="round")
+    a3.plot(g, true_d, color=C_TRUTH_D, lw=3.2, zorder=1, solid_capstyle="round")
+    a3.plot(g, u, color=C_SOB, lw=1.25, zorder=3)
+    a3.plot(g, du, color=C_GRN, lw=1.25, zorder=3)
+    a3.plot(xs, ys, "o", color=C_VAL, ms=2.6, mec="white", mew=0.5, zorder=4)
+    clean(a3)
+    a3.legend(handles=[plt.Line2D([], [], color=C_SOB, lw=1.25),
+                       plt.Line2D([], [], color=C_GRN, lw=1.25),
+                       plt.Line2D([], [], color=C_TRUTH, lw=3.2)],
+              labels=[r"fit $u_N$", r"$u_N'$", "truth"], ncol=3, frameon=False,
+              fontsize=6.4, loc="upper center", handlelength=1.1, columnspacing=0.9,
+              borderaxespad=0.0, handletextpad=0.35)
+    title(a3, "c", "fit and its derivative")
 
     # (d) the same training budget, spent two ways
     wc = _load("wallclock_budget.json")
     if wc is not None:
         su = wc["summary"]
         B = [0.5, 5.0, 50.0]
-        series = [("MLP-MAML", "MLP-MAML\n1761 weights", C_MLP, "--", "o"),
-                  ("Meta-LSQ-vanilla", "Meta-LSQ\n2 scalars", "#9467bd", "-", "s"),
-                  ("Meta-LSQ-Sobolev", "Meta-LSQ-Sob.\n3 scalars", C_SOB, "-", "*")]
+        series = [("MLP-MAML", "MLP-MAML", C_MLP, "--", "o"),
+                  ("Meta-LSQ-vanilla", "Meta-LSQ,\nvalues only", "#9467bd", "-", "s"),
+                  ("Meta-LSQ-Sobolev", "Meta-LSQ,\nwith slopes", C_SOB, "-", "o")]
         for key, lab, col, ls, mk in series:
             v = [su[key][str(b)]["mse_mean"] for b in B]
-            a4.plot(B, v, ls, color=col, lw=1.3, marker=mk,
-                    ms=7.0 if mk == "*" else 3.0, zorder=4)
+            a4.plot(B, v, ls, color=col, lw=1.4, marker=mk, ms=3.4, mec="white",
+                    mew=0.5, zorder=4)
+            dy = {"Meta-LSQ-vanilla": 3, "Meta-LSQ-Sobolev": -3}.get(key, 0)
             a4.annotate(lab, (B[-1], v[-1]), textcoords="offset points",
-                        xytext=(5, 0), fontsize=5.4, color=col, ha="left",
-                        va="center", zorder=6, linespacing=0.95)
+                        xytext=(5, dy), fontsize=6.2, color=col, ha="left",
+                        va="center", linespacing=0.95)
         sob05 = su["Meta-LSQ-Sobolev"]["0.5"]["mse_mean"]
-        a4.axhline(sob05, color="#d08c00", lw=1.0, ls=":", zorder=2)
+        a4.axhline(sob05, color=C_SOB, lw=0.8, ls=":", alpha=0.7, zorder=2)
         a4.set_xscale("log"); a4.set_yscale("log")
-        a4.set_xlim(0.36, 340); a4.set_ylim(4e-3, 11.0)
+        a4.set_xlim(0.36, 75); a4.set_ylim(4e-3, 11.0)
         a4.set_xticks([0.5, 5, 50]); a4.set_xticklabels(["0.5", "5", "50"])
+        a4.minorticks_off()
+        a4.set_yticks([1e-2, 1e-1, 1, 10])
         a4.set_xlabel("training time (s)", labelpad=1)
         a4.set_ylabel("test MSE", labelpad=1)
-        a4.grid(alpha=0.16, which="major", lw=0.4)
-        a4.set_title("(d) test MSE vs. training time", fontsize=8)
-
-    fig.tight_layout(pad=0.3, w_pad=1.2, rect=(0, 0.095, 1, 1))
+        a4.spines["top"].set_visible(False); a4.spines["right"].set_visible(False)
+        a4.grid(False)
+        a4.grid(alpha=0.18, which="major", lw=0.4, axis="y")
+        a4.tick_params(length=2, pad=1.5)
+        title(a4, "d", "error vs. training time")
 
     # inner loop: (a) -> (b) -> (c)
     for src, dst, lab in ((a1, a2, "stack"), (a2, a3, "solve")):
-        con = ConnectionPatch(xyA=(1.02, 0.5), coordsA=src.transAxes,
-                              xyB=(-0.04, 0.5), coordsB=dst.transAxes,
-                              arrowstyle="-|>", color="#555555", lw=0.9,
-                              mutation_scale=8)
-        fig.add_artist(con)
-        pa = src.get_position(); pb = dst.get_position()
-        fig.text((pa.x1 + pb.x0) / 2, pa.y0 + 0.5 * pa.height + 0.035, lab,
-                 ha="center", va="bottom", fontsize=6, color="#555555")
+        pa, pb = src.get_position(), dst.get_position()
+        x0, x1 = pa.x1 + 0.008, pb.x0 - (0.075 if dst is a2 else 0.008)
+        y = pa.y0 + 0.5 * pa.height
+        fig.add_artist(FancyArrowPatch((x0, y), (x1, y), transform=fig.transFigure,
+                                       arrowstyle="-|>", mutation_scale=9,
+                                       color="#666666", lw=1.0))
+        fig.text((x0 + x1) / 2, y + 0.03, lab, ha="center", va="bottom",
+                 fontsize=6.2, color="#666666", style="italic")
 
     # outer loop: query error at new points back to (sigma, mu, w)
     p1, p3 = a1.get_position(), a3.get_position()
-    fig.text((p1.x0 + p3.x1) / 2, 0.035,
-             r"outer loop over tasks:  query error of $u_N$  $\rightarrow$  gradient in "
-             r"$\log\sigma, \log\mu, \log w$ through the solve  $\rightarrow$  Adam step",
-             ha="center", va="center", fontsize=6.3, color=C_SOB,
-             bbox=dict(boxstyle="round,pad=0.35", fc="white", ec=C_SOB, lw=0.8))
+    fig.text((p1.x0 + p3.x1) / 2 + 0.01, 0.055,
+             r"outer loop over tasks:  query error of $u_N$  $\rightarrow$  gradient "
+             r"through the solve  $\rightarrow$  Adam step on "
+             r"$\log\sigma, \log\mu, \log w$",
+             ha="center", va="center", fontsize=6.4, color="#9c1c1f",
+             bbox=dict(boxstyle="round,pad=0.45", fc="#fbecec", ec="none"))
     _save(fig, "teaser.pdf")
 
 
@@ -330,6 +357,13 @@ def fig_mechanism():
     a2.plot(ws, [_pt(r["grad_mse"]) for r in rev["w_sweep"]], "o-",
             color=C_LSQ, lw=1.3, ms=3.2, label="gradient")
     a2.set_yscale("log")
+    a2.set_xscale("symlog", linthresh=0.1, linscale=0.6)
+    a2.set_xticks([0, 0.1, 1, 10]); a2.set_xticklabels(["0", "0.1", "1", "10"])
+    a2.set_xlim(-0.02, 13)
+    from matplotlib.ticker import FixedLocator, NullFormatter, NullLocator
+    a2.yaxis.set_major_locator(FixedLocator([0.02, 0.04, 0.08]))
+    a2.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:.2f}"))
+    a2.yaxis.set_minor_locator(NullLocator()); a2.yaxis.set_minor_formatter(NullFormatter())
     a2.set_xlabel("gradient weight $w$")
     a2.set_ylabel("query MSE")
     a2.set_title("(b) $w$ held fixed")
@@ -371,7 +405,8 @@ def fig_mechanism():
     a4.set_xlabel("bandwidth $\\sigma$")
     a4.set_ylabel("held-out relative RMSE")
     a4.set_title("(d) function recovery")
-    a4.legend(frameon=False, fontsize=5.6, loc="lower right", ncol=2,
+    a4.set_ylim(top=40.0)
+    a4.legend(frameon=False, fontsize=5.6, loc="upper left", ncol=2,
               handlelength=1.4, borderaxespad=0.2, labelspacing=0.2,
               columnspacing=0.6)
 
@@ -571,14 +606,16 @@ def fig_calibration():
              ("emp_bayes", "residual plug-in $\\hat\\sigma_y^2$", C_SOB)]
     fig, ax = plt.subplots(figsize=(COL, 2.0))
     xs = [nominal[k] for k in order]
-    ax.plot([40, 100], [40, 100], color="black", ls=":", lw=0.9, label="perfect")
+    ax.plot([40, 100], [40, 100], color="black", ls=":", lw=0.9)
+    ax.text(86, 80, "perfect", rotation=33, fontsize=6, ha="center", va="center")
     for key, lab, c in convs:
         ax.plot(xs, [100 * _pt(entry[key][k]) for k in order], "o-",
                 color=c, lw=1.3, ms=3.2, label=lab)
     ax.set_xlabel("nominal coverage (%)")
     ax.set_ylabel("empirical coverage (%)")
     ax.set_title(f"posterior calibration (noise $=$ {entry['noise']})")
-    ax.legend(frameon=False, fontsize=6, loc="center right")
+    ax.legend(frameon=False, fontsize=6, loc="upper left", bbox_to_anchor=(0.0, 0.91),
+              handlelength=1.6, labelspacing=0.3)
     _save(fig, "calibration.pdf")
 
 

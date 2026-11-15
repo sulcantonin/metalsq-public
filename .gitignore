@@ -17,3 +17,8 @@ dist/
 *.out
 *.run.xml
 *.synctex.gz
+
+# rebuilt by the ARES scripts in examples/
+examples/results/*_pool.pt
+examples/results/*.log
+examples/results/*_smoke.jsonl

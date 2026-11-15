@@ -6,6 +6,8 @@ falling. Here value-only Meta-LSQ is trained for 8000 steps on the same three se
 and evaluated on the same 200 test tasks. ``--float64`` runs training and evaluation
 in double precision: in float32 the primal ridge solve (200x200, rank <= 10) breaks
 down once mu drops below about 1e-7, which caps how small the learned ridge can get.
+Tasks and basis are drawn in float32 in both modes and only then cast, so the float32
+and float64 runs see the same basis and the same training and test tasks.
 
     python3 experiments/alpaca_matched_lsq.py [--float64] --save results/alpaca_matched_lsq_f64.json
 """
@@ -13,16 +15,15 @@ import sys, os, json, statistics
 import torch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.maml_sinusoid import train_fastlsq_meta, sample_tasks, fastlsq_inner_solve, fastlsq_predict
-if "--float64" in sys.argv:           # after the import: maml_sinusoid sets float32 on import
-    torch.set_default_dtype(torch.float64)
+DT = torch.float64 if "--float64" in sys.argv else torch.float32   # draws stay float32
 
 SEEDS, N_ITERS, N_TEST, K, K_Q = (0, 1, 2), 8000, 200, 10, 50
 
 
 def per_task_mse(meta, seed):
     gen = torch.Generator().manual_seed(seed + 9999)          # eval_fastlsq_meta's test tasks
-    xs, ys, dys, xq, yq = sample_tasks(N_TEST, K, K_Q, gen)
-    sigma, mu = torch.tensor(meta["sigma"]), torch.tensor(meta["mu"])
+    xs, ys, dys, xq, yq = (a.to(DT) for a in sample_tasks(N_TEST, K, K_Q, gen))
+    sigma, mu = torch.tensor(meta["sigma"], dtype=DT), torch.tensor(meta["mu"], dtype=DT)
     out = []
     with torch.no_grad():
         for t in range(N_TEST):
@@ -33,13 +34,14 @@ def per_task_mse(meta, seed):
 
 rows = []
 for seed in SEEDS:
-    meta = train_fastlsq_meta(sobolev=False, n_iters=N_ITERS, seed=seed, log_every=10**6)[0]
+    meta = train_fastlsq_meta(sobolev=False, n_iters=N_ITERS, seed=seed, log_every=10**6,
+                              compute_dtype=DT if DT == torch.float64 else None)[0]
     e = per_task_mse(meta, seed)
     rows.append({"seed": seed, "sigma": meta["sigma"], "mu": meta["mu"],
                  "mean_mse": statistics.mean(e), "median_mse": statistics.median(e)})
     print(f"seed {seed}: sigma {meta['sigma']:.3f} mu {meta['mu']:.2e} "
           f"mean {rows[-1]['mean_mse']:.4f} median {rows[-1]['median_mse']:.2e}", flush=True)
-out = {"dtype": str(torch.get_default_dtype()), "n_iters": N_ITERS, "seeds": list(SEEDS),
+out = {"dtype": str(DT), "n_iters": N_ITERS, "seeds": list(SEEDS),
        "mean_mse": statistics.mean(r["mean_mse"] for r in rows), "per_seed": rows}
 print(f"mean over seeds: {out['mean_mse']:.4f}")
 if "--save" in sys.argv:

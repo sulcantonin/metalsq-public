@@ -1,0 +1,25 @@
+{
+ "n_trials": 300,
+ "largest_move_difference": 3.0832986048593787e-06,
+ "published_runs_leaving_limits": 28,
+ "closed_loop_path_within_1pct": 0.9866666666666667,
+ "closed_loop_path_median_difference": 7.550780233272353e-06,
+ "published_best_error": {
+  "median": 4.440778184289229,
+  "mean": 11.29660172407417
+ },
+ "ours_desy_setting_best_error": {
+  "median": 4.440834086772545,
+  "mean": 11.316612605815159
+ },
+ "beam_final_setting": {
+  "clipped": {
+   "median": 4.445911760589999,
+   "mean": 17.06132792429335
+  },
+  "not clipped": {
+   "median": 4.303197303759281,
+   "mean": 11.830742644792766
+  }
+ }
+}

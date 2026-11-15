@@ -1,0 +1,11 @@
+{
+  "rule": "per beamline, information level and family: lowest median true MAE after 150 measurements on the 60 development tasks (seed 3031); locked 2026-11-14 before any evaluation run",
+  "ares": {
+    "values": {"Meta-LSQ": "Meta-LSQ, values", "ALPaCA-style": "ALPaCA-style, values"},
+    "twin": {"Meta-LSQ": "Meta-LSQ, slopes + curvatures", "ALPaCA-style": "ALPaCA-style, slopes"}
+  },
+  "lcls_diag0": {
+    "values": {"Meta-LSQ": "Meta-LSQ, values + constraints", "ALPaCA-style": "ALPaCA-style, values + constraints"},
+    "twin": {"Meta-LSQ": "Meta-LSQ, slopes", "ALPaCA-style": "ALPaCA-style, slopes + constraints"}
+  }
+}

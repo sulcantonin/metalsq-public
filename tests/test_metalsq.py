@@ -93,3 +93,48 @@ def test_meta_fit_learns_the_sinusoid_family():
     assert after.median() < before.median() / 10 and after.median() < 1e-3
     assert after.mean() < 0.1
     assert 0.3 < model.sigma.item() < 1.0 and model.w.item() > 1.0
+
+
+@pytest.mark.parametrize("alpha", [(0, 0), (1, 0), (0, 2), (1, 1), (2, 1)])
+def test_polynomial_derivatives_match_autograd(alpha):
+    from metalsq import PolynomialColumns
+    poly = PolynomialColumns(2, degree=3)
+    c = torch.randn(poly.n_columns, dtype=torch.float64)
+    x = torch.randn(4, 2, dtype=torch.float64, requires_grad=True)
+    d = poly.features(x) @ c
+    for k, order in enumerate(alpha):
+        for _ in range(order):
+            d = torch.autograd.grad(d.sum(), x, create_graph=True)[0][:, k]
+    assert torch.allclose(d, poly.derivative(x.detach(), alpha) @ c, atol=1e-10)
+
+
+def test_polynomial_columns_fit_a_quadratic_exactly():
+    model = MetaLSQ(in_dim=2, sobolev=True, sigma=0.5, mu=1e-10, poly_degree=2)
+    g = torch.Generator().manual_seed(0)
+    x = torch.rand(12, 2, generator=g, dtype=torch.float64) * 2 - 1
+    f = lambda x: 1 + 2 * x[:, 0] - x[:, 1] + 3 * x[:, 0] * x[:, 1] + 0.5 * x[:, 1] ** 2
+    df = lambda x: torch.stack([2 + 3 * x[:, 1], -1 + 3 * x[:, 0] + x[:, 1]], 1)
+    fit = model.adapt(x, f(x), df(x))
+    xt = torch.rand(50, 2, generator=g, dtype=torch.float64) * 2 - 1
+    assert torch.allclose(fit(xt), f(xt), atol=1e-4)
+    assert torch.allclose(fit.gradient(xt), df(xt), atol=1e-3)
+
+
+def test_diagonal_bandwidth_meta_gradient():
+    batch = []
+    g = torch.Generator().manual_seed(1)
+    for _ in range(3):
+        x = torch.rand(10, 2, generator=g, dtype=torch.float64) * 2 - 1
+        xq = torch.rand(20, 2, generator=g, dtype=torch.float64) * 2 - 1
+        f = lambda z: torch.sin(3 * z[:, 0]) + 0.3 * torch.cos(z[:, 1])
+        batch.append(Task(x=x, y=f(x), xq=xq, yq=f(xq)))
+    model = MetaLSQ(in_dim=2, sobolev=False, sigma=0.8, mu=1e-3, bandwidth="diagonal", poly_degree=1)
+    assert model.log_sigma.shape == (2,)
+    model.query_loss(batch).backward()
+    for k in range(2):
+        eps = 1e-5
+        with torch.no_grad():
+            model.log_sigma[k] += eps; up = model.query_loss(batch).item()
+            model.log_sigma[k] -= 2 * eps; down = model.query_loss(batch).item()
+            model.log_sigma[k] += eps
+        assert math.isclose(model.log_sigma.grad[k].item(), (up - down) / (2 * eps), rel_tol=1e-4, abs_tol=1e-9)

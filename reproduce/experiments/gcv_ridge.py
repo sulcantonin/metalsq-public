@@ -165,8 +165,12 @@ def validate_gcv(reps=10, verbose=True):
 def eval_policy(meta, sampler, policy, seed):
     gen = torch.Generator().manual_seed(seed + 9999)
     xs, ys, dys, xq, yq = sampler(N_TEST, K, K_Q, gen)
-    Wb, bb = meta["Wb"], meta["bb"]
-    sigma = torch.tensor(meta["sigma"])
+    # Tasks and basis are drawn in float32 (the same draws as training); every fit is
+    # then solved in float64. GCV picks ridges down to 1e-8, far below what a float32
+    # normal-equations solve can resolve, and a float32 fit there measures round-off.
+    xs, ys, dys, xq, yq = (a.double() for a in (xs, ys, dys, xq, yq))
+    Wb, bb = meta["Wb"].double(), meta["bb"].double()
+    sigma = torch.tensor(meta["sigma"], dtype=torch.float64)
     sobolev = meta["sobolev"]
     gw = meta["grad_w"] if sobolev else 1.0
     mu_star = meta["mu"]
@@ -192,7 +196,7 @@ def eval_policy(meta, sampler, policy, seed):
                 raise ValueError(policy)
             chosen.append(float(mu_use))
             W, beta = fastlsq_inner_solve(xs[t], ys[t], dys[t], Wb, bb, sigma,
-                                          torch.tensor(float(mu_use)),
+                                          torch.tensor(float(mu_use), dtype=torch.float64),
                                           sobolev=sobolev, grad_w=gw)
             qpred = fastlsq_predict(xq[t], W, bb, beta)
             losses.append((qpred - yq[t]).pow(2).mean().item())
@@ -225,17 +229,17 @@ def main():
     args = ap.parse_args()
     N_TEST = args.n_test
     seeds = SEEDS[:args.seeds]
-    p = args.save if os.path.isabs(args.save) else os.path.join(_REPO_ROOT, args.save)
+    out_path = args.save if os.path.isabs(args.save) else os.path.join(_REPO_ROOT, args.save)
 
     if args.only_validate:
         # Leaves every other field (and its key order) as written by the full run.
         print("==== GCV implementation guard (ill-conditioned, interior optimum) ====")
-        with open(p) as f:
+        with open(out_path) as f:
             out = json.load(f)
         out["gcv_guard"] = validate_gcv()
-        with open(p, "w") as f:
+        with open(out_path, "w") as f:
             json.dump(out, f, indent=2)
-        print(f"\n[saved] {p}   (gcv_guard only)")
+        print(f"\n[saved] {out_path}   (gcv_guard only)")
         return
 
     t_start = time.time()
@@ -307,10 +311,10 @@ def main():
                                    int(GCV_GRID.numel())]},
            "mu_star_per_seed": mu_stars, "results": results,
            "mu_histogram": mu_hist, "gcv_guard": guard, "elapsed_s": elapsed}
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    with open(p, "w") as f:
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
-    print(f"\n[saved] {p}   ({elapsed:.1f}s)")
+    print(f"\n[saved] {out_path}   ({elapsed:.1f}s)")
 
 
 if __name__ == "__main__":
