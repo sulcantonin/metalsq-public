@@ -299,6 +299,18 @@ if wc:
               su["Meta-LSQ-Sobolev"][b]["mse_mean"] == min(su[m][b]["mse_mean"] for m in meths))
     check_r("0.5s Sobolev beats 50s MLP-MAML",
             su["MLP-MAML"]["50.0"]["mse_mean"] / su["Meta-LSQ-Sobolev"]["0.5"]["mse_mean"], "8.6")
+    # Sec. 5.1 text: "about 115 steps", "about 9100 steps", "a step costs 4 to 5 ms"
+    def _steps(m, b):
+        return st.mean(x["iters"] for x in wc["per_seed"][m][b])
+    check("Sobolev steps in 0.5 s ('about 115')", _steps("Meta-LSQ-Sobolev", "0.5"), 115, 0.05)
+    check("MLP-MAML steps in 50 s ('about 9100')", _steps("MLP-MAML", "50.0"), 9100, 0.05)
+    ms_step = [1e3 * st.mean(x["train_time"] for x in wc["per_seed"][m][b]) / _steps(m, b)
+               for m in ("MLP-MAML", "Meta-LSQ-Sobolev") for b in ("0.5", "5.0", "50.0")]
+    # Sec. 5.1: "about 4 ms for Meta-LSQ-Sobolev and 5 ms for MLP-MAML ... about a third more steps"
+    claim(f"MLP-MAML ms per step about 5 ({ms_step[:3]})", all(4.5 <= v < 5.5 for v in ms_step[:3]))
+    claim(f"Sobolev ms per step about 4 ({ms_step[3:]})", all(3.5 <= v < 4.5 for v in ms_step[3:]))
+    check("Sobolev takes about a third more steps in 50 s",
+          _steps("Meta-LSQ-Sobolev", "50.0") / _steps("MLP-MAML", "50.0"), 4 / 3, 0.05)
     # the 50 s cell of the Sobolev row must not be a diverged run
     worst = max(r["test_mse"] for r in wc["per_seed"]["Meta-LSQ-Sobolev"]["50.0"])
     ok = worst < 1.0
@@ -486,6 +498,12 @@ if ns:
           all(a >= b for a, b in zip(noisy_w, noisy_w[1:])), "data=" + " ".join(f"{w:.0f}" for w in noisy_w))
     for nz in (0.0, 0.1, 0.25, 0.5):          # "well below MLP-MAML at every noise level"
         assert by_n[nz]["meta_lsq_sob_mse"]["mean"] < by_n[nz]["mlp_mse"]["mean"], nz
+    sob_ = [by_n[nz]["meta_lsq_sob_mse"]["mean"] for nz in (0.0, 0.1, 0.25, 0.5)]
+    mlp_ = [by_n[nz]["mlp_mse"]["mean"] for nz in (0.0, 0.1, 0.25, 0.5)]
+    check_r("App. C Meta-LSQ-Sobolev noise sweep, lowest (0.0049)", min(sob_), "0.0049")
+    check_r("App. C Meta-LSQ-Sobolev noise sweep, highest (0.055)", max(sob_), "0.055")
+    claim("App. C MLP-MAML 'about 0.65' at every noise level",
+          all(0.6 <= v <= 0.7 for v in mlp_), " ".join(f"{v:.3f}" for v in mlp_))
 ns_old = load("noise_sweep_2000steps.json")
 if ns_old and ns:
     by_o = {r["noise"]: r for r in ns_old}
@@ -842,44 +860,13 @@ if ar_:
     for m_ in ("Meta-LSQ, twin", "ALPaCA-style, twin"):
         check(f"ARES imperfect model {m_} ('near 11')", RB_["twin"][m_]["median"], 11.0, 0.03)
     check_r("ARES Meta-LSQ values, first 150 trials", RB_["nominal"]["Meta-LSQ, machine"]["median"], "8.8")
-    rows_ = {"RL agent": (("4.5", "17"), None, ("22", "34"), ("8.7", "18")),
-             "BO (DESY)": (("33", "39"), None, ("55", "209"), ("44", "53")),
-             "ALPaCA-style, machine": (("8.0", "14"), None, ("20", "78"), ("13", "21")),
-             "Meta-LSQ, machine": (("8.8", "14"), None, ("20", "78"), ("13", "19")),
-             "gradient descent, twin": (("12", "26"), ("12", "33"), ("107", "123"), ("118", "126")),
-             "ALPaCA-style, twin": (("2.1", "9.1"), ("10.8", "19"), ("10", "61"), ("20", "26")),
-             "Meta-LSQ, twin": (("1.6", "9.6"), ("10.9", "19"), ("9.3", "61"), ("21", "27"))}
-    for m_, cells_ in rows_.items():
-        for sc_, cell_ in zip(("nominal", "twin", "noise", "hysteresis"), cells_):
-            if cell_ is None:
-                continue
-            check_r(f"ARES robust {sc_} {m_} median", RB_[sc_][m_]["median"], cell_[0])
-            check_r(f"ARES robust {sc_} {m_} mean", RB_[sc_][m_]["mean"], cell_[1])
-    # bold cells of Table ares-robust: lowest in each column, median and mean apart
-    for sc_, k_, m_ in (("nominal", "median", "Meta-LSQ, twin"), ("nominal", "mean", "ALPaCA-style, twin"),
-                        ("twin", "median", "ALPaCA-style, twin"), ("noise", "median", "Meta-LSQ, twin"),
-                        ("noise", "mean", "RL agent"), ("hysteresis", "median", "RL agent"),
-                        ("hysteresis", "mean", "RL agent")):
-        claim(f"Table ares-robust bold: {sc_} {k_} lowest for {m_}",
-              RB_[sc_][m_][k_] == min(RB_[sc_][x][k_] for x in rows_ if x in RB_[sc_]))
-
-# ---- ARES noise scenario, lost-beam trials (App. ares, Robustness paragraph) ----
-nt_ = load("ares_noise_tail.json")
-if nt_:
-    print("\nARES noise scenario, lost-beam trials")
-    check("noise trials", nt_["n_trials"], 150, 0)
-    lk_ = nt_["Meta-LSQ, machine"]
-    check("Meta-LSQ from values, trials with a lost beam", len(lk_["lost"]), 4, 0)
-    check_r("Meta-LSQ from values, mean over the other trials", lk_["mean_without_lost"], "25")
-    check("Meta-LSQ from values, other trials", nt_["n_trials"] - len(lk_["lost"]), 146, 0)
-    for m_ in ("ALPaCA-style, machine", "Meta-LSQ, machine", "ALPaCA-style, twin", "Meta-LSQ, twin"):
-        check(f"noise: {m_} mean / agent's ('about twice')", nt_[m_]["mean"] / nt_["RL agent"]["mean"], 2.0, 0.2)
-    if ar_:   # the rows of this file are those of Table ares-robust
-        for m_ in ("RL agent", "BO (DESY)", "ALPaCA-style, machine", "Meta-LSQ, machine",
-                   "ALPaCA-style, twin", "Meta-LSQ, twin"):
-            for k_ in ("median", "mean"):
-                check(f"noise file agrees with ares_tuning.json, {m_} {k_}", nt_[m_][k_],
-                      ar_["robust"]["noise"][m_][k_], 1e-6)
+    # imperfect model (first 150 trials), quoted in the text
+    check_r("ARES imperfect model, gradient descent median", RB_["twin"]["gradient descent, twin"]["median"], "12")
+    claim("ARES imperfect model: Meta-LSQ/ALPaCA worse than Meta-LSQ from values, ahead of gradient descent",
+          all(RB_["nominal"]["Meta-LSQ, machine"]["median"] < RB_["twin"][m]["median"]
+              < RB_["twin"]["gradient descent, twin"]["median"] for m in ("Meta-LSQ, twin", "ALPaCA-style, twin")))
+    # Table ares-robust (noise, hysteresis) was removed on 16 Nov 2026: the surrogates
+    # were never meta-trained with readout noise or hysteresis.
 
 # ---- ARES, our copy of DESY's agent against their published runs (Sec. 4.3, App. ares) ----
 ac_ = load("ares_agent_check.json")
@@ -940,6 +927,137 @@ if gr_:
         check(f"grid 1.5-2.0 {c_} median ('near 8')", gr_["bands"]["1.5-2.0"][c_][0], 8, 0.05)
     if not gr_["criterion_met"]:
         FAILS.append("grid: the pre-set win criterion is not met")
+
+print("\n== Sec. 5.2 / Table 3 / App. E: fixed design selected by cross-validation ==")
+v2 = load("real_calibration_v2.json")
+if v2:
+    import numpy as np
+    T4 = ["CO", "NO2", "C6H6", "NOx"]
+    tr_ = lambda t: v2[t]["test_per_seed_mean"]
+    sel_ = lambda t, fam: v2[t]["selected"][fam]
+    mean_ = lambda t, k: float(np.mean(tr_(t)[k]))
+    std_ = lambda t, k: float(np.std(tr_(t)[k], ddof=1))
+    FIRST, GPFIRST = "Meta-LSQ (first design)|x|floor=10", "GP (first design)|x"
+    # the selection the paper describes
+    claim("CV: Meta-LSQ and GP use T/RH on CO, NO2, NOx; sensor only on benzene",
+          all(sel_(t, f).split("|")[1] == ("x" if t == "C6H6" else "xTR")
+              for t in T4 for f in ("Meta-LSQ", "GP")))
+    claim("CV floors 3, 1, 3, 3 mu* (CO, NO2, benzene, NOx)",
+          [sel_(t, "Meta-LSQ").split("floor=")[1] for t in T4] == ["3", "1", "3", "3"])
+    claim("CV: MAML sensor only except on NO2",
+          [sel_(t, "MAML").split("|")[1] for t in T4] == ["x", "xTR", "x", "x"])
+    claim("CV: ALPaCA-style uses T/RH on every target",
+          all(sel_(t, "ALPaCA-style").split("|")[1] == "xTR" for t in T4))
+    claim("CV: per-task linear uses T/RH except on benzene",
+          [sel_(t, "per-task linear").split("|")[1] for t in T4] == ["xTR", "xTR", "x", "xTR"])
+    # Table 3, as printed
+    tab3 = {"CO":   ("0.25", "0.20", "0.20", "0.28", "0.34", "0.40"),
+            "NO2":  ("0.78", "0.69", "0.42", "1.61", "0.84", "1.74"),
+            "C6H6": ("1.6", "0.57", "2.2", "1.4", "483", "3.0"),        # printed in units of 1e-4
+            "NOx":  ("2.57", "0.62", "0.63", "0.72", "1.56", "2.28")}
+    bold = {"CO": ("GP", "ALPaCA-style"), "NO2": ("ALPaCA-style",), "C6H6": ("GP",), "NOx": ("GP",)}
+    for t, row in tab3.items():
+        fams = ("Meta-LSQ", "GP", "ALPaCA-style", "MAML", "per-task linear", "per-task quadratic")
+        keys = tuple(sel_(t, f) for f in fams)
+        sc = 1e4 if t == "C6H6" else 1.0
+        for lbl, k, p in zip(fams, keys, row):
+            check_r(f"Table 3 {t} {lbl}", sc * mean_(t, k), p)
+        printed = {f: float(p) for f, p in zip(fams, row)}
+        claim(f"Table 3 {t}: bold = lowest at printed precision {bold[t]}",
+              {f for f, v in printed.items() if v == min(printed.values())} == set(bold[t]))
+    # App. E table: mean +- std
+    tabE = {  # row: per target (mean, std) as printed
+        "first":  (FIRST, {"CO": ("0.32", "0.05"), "NO2": ("0.87", "0.08"), "C6H6": ("4.0e-3", "2.9e-3"), "NOx": ("0.84", "0.07")}),
+        "lsq":    (None,  {"CO": ("0.25", "0.03"), "NO2": ("0.78", "0.08"), "C6H6": ("1.6e-4", "1.9e-4"), "NOx": ("2.57", "1.9")}),
+        "gpfirst": (GPFIRST, {"CO": ("0.30", "0.03"), "NO2": ("0.84", "0.06"), "C6H6": ("3.8e-3", "2.8e-3"), "NOx": ("0.81", "0.05")}),
+        "gp":     ("GP", {"CO": ("0.20", "0.01"), "NO2": ("0.69", "0.10"), "C6H6": ("5.7e-5", "3.2e-5"), "NOx": ("0.62", "0.02")}),
+        "alpaca": ("ALPaCA-style", {"CO": ("0.20", "0.01"), "NO2": ("0.42", "0.04"), "C6H6": ("2.2e-4", "1.3e-4"), "NOx": ("0.63", "0.03")}),
+        "maml":   ("MAML", {"CO": ("0.28", "0.02"), "NO2": ("1.61", "0.97"), "C6H6": ("1.4e-4", "1.2e-4"), "NOx": ("0.72", "0.03")}),
+        "lin":    ("per-task linear", {"CO": ("0.34", "0.05"), "NO2": ("0.84", "0.20"), "C6H6": ("4.8e-2", "0.9e-2"), "NOx": ("1.56", "0.50")}),
+        "quad":   ("per-task quadratic", {"CO": ("0.40", "0.18"), "NO2": ("1.74", "0.89"), "C6H6": ("3.0e-4", "2.2e-4"), "NOx": ("2.28", "1.4")}),
+    }
+    for row, (src, vals) in tabE.items():
+        for t, (m_p, s_p) in vals.items():
+            k = src if src in (FIRST, GPFIRST) else sel_(t, "Meta-LSQ" if src is None else src)
+            check_r(f"App. E {row} {t} mean", mean_(t, k), m_p)
+            check_r(f"App. E {row} {t} std", std_(t, k), s_p)
+    # Sec. 5.2 text
+    L = {t: mean_(t, sel_(t, "Meta-LSQ")) for t in T4}
+    F = {t: mean_(t, FIRST) for t in T4}
+    G = {t: mean_(t, sel_(t, "GP")) for t in T4}
+    Mm = {t: mean_(t, sel_(t, "MAML")) for t in T4}
+    check_r("first design 28x behind MAML on benzene", F["C6H6"] / Mm["C6H6"], "28")
+    check_r("first design's error higher, CO (30%)", 100 * (F["CO"] / L["CO"] - 1), "30")
+    check_r("first design's error higher, NO2 (12%)", 100 * (F["NO2"] / L["NO2"] - 1), "12")
+    check_r("improvement over first design, benzene (25x)", F["C6H6"] / L["C6H6"], "25")
+    for t in ("CO", "NO2"):
+        a, b = np.array(tr_(t)[sel_(t, "Meta-LSQ")]), np.array(tr_(t)[sel_(t, "MAML")])
+        claim(f"{t}: below MAML on every seed", bool((a < b).all()))
+    claim("benzene: level with MAML (within 15%)", abs(L["C6H6"] / Mm["C6H6"] - 1) < 0.15,
+          f"ratio {L['C6H6'] / Mm['C6H6']:.3f}")
+    claim("abstract: ahead of MAML on exactly two targets (CO, NO2)",
+          [t for t in T4 if L[t] < Mm[t]] == ["CO", "NO2"])
+    claim("GP better than Meta-LSQ on every target (abstract)", all(G[t] < L[t] for t in T4))
+    A_ = {t: mean_(t, sel_(t, "ALPaCA-style")) for t in T4}
+    claim("abstract: ALPaCA-style more accurate than Meta-LSQ on most (3 of 4) targets",
+          sum(A_[t] < L[t] for t in T4) == 3)
+    claim("ALPaCA-style best on NO2", A_["NO2"] < min(G["NO2"], Mm["NO2"], L["NO2"]))
+    claim("GP best on benzene", G["C6H6"] < min(A_["C6H6"], Mm["C6H6"], L["C6H6"]))
+    claim("GP and ALPaCA-style level on CO and NOx (within 3%)",
+          all(abs(A_[t] / G[t] - 1) < 0.03 for t in ("CO", "NOx")),
+          " ".join(f"{t} {A_[t] / G[t]:.3f}" for t in ("CO", "NOx")))
+    # cost: Results sentence and App. E
+    tm_ = lambda t, fam, f: float(np.mean([x[f] for x in v2[t]["timing"][sel_(t, fam)]]))
+    rng_ = lambda fam, f: (min(tm_(t, fam, f) for t in T4), max(tm_(t, fam, f) for t in T4))
+    for fam, (tr_p, ad_p) in {"Meta-LSQ": (("5.4", "8.7"), ("0.29", "0.49")),
+                              "GP": (("1.3", "1.4"), ("0.06", "0.07")),
+                              "ALPaCA-style": (("6.9", "7.0"), ("0.09", "0.10")),
+                              "MAML": (("8.8", "9.2"), ("0.12", "0.13"))}.items():
+        lo, hi = rng_(fam, "train_s"); check_r(f"App. E {fam} train s, low", lo, tr_p[0]); check_r(f"App. E {fam} train s, high", hi, tr_p[1])
+        lo, hi = rng_(fam, "adapt_ms"); check_r(f"App. E {fam} week ms, low", lo, ad_p[0]); check_r(f"App. E {fam} week ms, high", hi, ad_p[1])
+    nm_ = lambda fam: sorted({v2[t]["timing"][sel_(t, fam)][0]["n_meta"] for t in T4})
+    claim("meta-parameters: Meta-LSQ 6-10, GP 5-9, ALPaCA 1842, MAML 1761-1841",
+          (nm_("Meta-LSQ")[0], nm_("Meta-LSQ")[-1], nm_("GP")[0], nm_("GP")[-1], nm_("ALPaCA-style"),
+           nm_("MAML")[0], nm_("MAML")[-1]) == (6, 10, 5, 9, [1842], 1761, 1841),
+          f"LSQ {nm_('Meta-LSQ')} GP {nm_('GP')} ALPaCA {nm_('ALPaCA-style')} MAML {nm_('MAML')}")
+    check_r("Results: GP trains in 1.4 s", rng_("GP", "train_s")[1], "1.4")
+    claim("Results: Meta-LSQ trains in 5-9 s", 4.5 <= rng_("Meta-LSQ", "train_s")[0] and rng_("Meta-LSQ", "train_s")[1] <= 9.5)
+    ratios = [tm_(t, "Meta-LSQ", "adapt_ms") / tm_(t, "GP", "adapt_ms") for t in T4]
+    check_r("Results: GP adapts 5x faster (low end)", min(ratios), "5")
+    check_r("Results: GP adapts 7x faster (high end)", max(ratios), "7")
+    nox = np.array(tr_("NOx")[sel_("NOx", "Meta-LSQ")])
+    claim("NOx: fails on three of five seeds (above 2)", int((nox > 2).sum()) == 3)
+    for p_, v_ in zip(("0.73", "0.78", "2.79", "5.35", "3.19"), nox):
+        check_r("App. E NOx per-seed test error", v_, p_)
+    cvn = v2["NOx"]["cv"][sel_("NOx", "Meta-LSQ")]
+    check_r("NOx last CV block (1.41)", cvn[-1], "1.41")
+    # "The last cross-validation block was hard for every method (1.07 to 2.14, Meta-LSQ 1.41)"
+    last_ = [v2["NOx"]["cv"][sel_("NOx", f_)][-1] for f_ in v2["NOx"]["selected"]]
+    check_r("NOx last CV block, lowest over selected methods", min(last_), "1.07")
+    check_r("NOx last CV block, highest over selected methods", max(last_), "2.14")
+    # Sec. 5.5: "for the final design cross-validation chose 1 to 3 times"
+    floors_ = sorted({float(sel_(t, "Meta-LSQ").split("floor=")[1]) for t in T4})
+    claim(f"selected floors are 1 and 3 times mu* ({floors_})", floors_ == [1.0, 3.0])
+    check("weeks per target 53-56", min(v2[t]["n_weeks"] for t in T4), 53, 0)
+    check("weeks per target 53-56 (max)", max(v2[t]["n_weeks"] for t in T4), 56, 0)
+    # temperatures: "half of the test hours are colder than 95% of the training hours";
+    # App. E: 56% on NOx. Recomputed from the data with the experiment's own loader.
+    try:
+        import importlib.util
+        spec_ = importlib.util.spec_from_file_location(
+            "rc2", os.path.join(ROOT, "experiments", "real_calibration_v2.py"))
+        rc2 = importlib.util.module_from_spec(spec_); spec_.loader.exec_module(rc2)
+        cold = {}
+        for t in T4:
+            tk = rc2.load(*rc2.TARGETS[t]); n_ = int(round(0.6 * len(tk)))
+            Ttr = np.concatenate([x[0][:, 1] for x in tk[:n_]])
+            Tte = np.concatenate([x[0][:, 1] for x in tk[n_:]])
+            cold[t] = float(np.mean(Tte < np.percentile(Ttr, 5)))
+        claim("test hours colder than 95% of training hours: about half",
+              all(0.45 <= v <= 0.6 for v in cold.values()), str({k: round(v, 2) for k, v in cold.items()}))
+        check_r("NOx share of colder test hours (56%)", 100 * cold["NOx"], "56")
+    except Exception as e:                           # data or pandas missing
+        SKIPS.append(f"temperature check ({e})")
 
 print()
 if SKIPS:

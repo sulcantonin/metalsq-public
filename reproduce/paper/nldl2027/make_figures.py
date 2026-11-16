@@ -139,7 +139,7 @@ def _teaser_fit(d):
     g = np.asarray(d["grid"])
     u = (np.sin(np.outer(g, W) + bb) / np.sqrt(N)) @ beta
     du = (W * np.cos(np.outer(g, W) + bb) / np.sqrt(N)) @ beta
-    return A, u, du
+    return A, u, du, beta, t
 
 
 def fig_teaser():
@@ -151,7 +151,7 @@ def fig_teaser():
     d = _load("teaser.json")
     if d is None:
         return
-    A, u, du = _teaser_fit(d)
+    A, u, du, beta, tvec = _teaser_fit(d)
     g = np.asarray(d["grid"]); true = np.asarray(d["true"])
     xs = np.asarray(d["support_x"]); ys = np.asarray(d["support_y"])
     dys = np.asarray(d["support_dy"])
@@ -177,29 +177,61 @@ def fig_teaser():
         ax.set_xlabel("$x$", labelpad=0)
         ax.tick_params(length=2, pad=1.5)
 
-    # (a) the task: ten values, each with its slope
-    a1.plot(g, true, color=C_TRUTH, lw=2.6, zorder=1, solid_capstyle="round")
-    h = 0.5
+    # (a) the task: a value fixes a point of the curve, a slope fixes its direction
+    # there. The values-only Meta-LSQ fit of the same task (its own meta-learned
+    # scalars, stored by teaser_demo.py) goes through every point but bends away
+    # from the truth where the points are sparse.
+    C_VONLY = "#9467bd"                      # same colour as "values only" in (d)
+    vonly = np.asarray(d["meta_lsq_valueonly"])
+    a1.plot(g, true, color=C_TRUTH, lw=1.8, zorder=1, solid_capstyle="round")
+    a1.fill_between(g, true, vonly, color=C_VONLY, alpha=0.28, lw=0, zorder=1.5)
+    a1.plot(g, vonly, color=C_VONLY, lw=1.0, ls=(0, (3.2, 1.6)), zorder=2)
+    h = 0.62
     for x0, y0, s0 in zip(xs, ys, dys):
-        a1.plot([x0 - h, x0 + h], [y0 - s0 * h, y0 + s0 * h], color=C_GRN, lw=1.7,
-                zorder=2, solid_capstyle="round")
-    a1.plot(xs, ys, "o", color=C_VAL, ms=3.6, mec="white", mew=0.6, zorder=3)
+        n = h / np.sqrt(1 + (s0 / amp * 2.5) ** 2)   # roughly equal length on screen
+        a1.plot([x0 - n, x0 + n], [y0 - s0 * n, y0 + s0 * n], color=C_GRN, lw=2.0,
+                zorder=3, solid_capstyle="round")
+    a1.plot(xs, ys, "o", color=C_VAL, ms=3.6, mec="white", mew=0.6, zorder=4)
     clean(a1)
+    i_gap = np.argmax(np.abs(vonly - true) * (g < xs.min() + 4))
+    a1.annotate("values\nonly", (g[i_gap], vonly[i_gap]),
+                xytext=(-5.3, -0.7 * amp), textcoords="data", fontsize=6.0,
+                color=C_VONLY, ha="left", va="center", linespacing=0.9,
+                arrowprops=dict(arrowstyle="-", color=C_VONLY, lw=0.6,
+                                shrinkA=1, shrinkB=1.5))
     a1.legend(handles=[plt.Line2D([], [], ls="", marker="o", color=C_VAL, ms=3.6,
                                   mec="white", mew=0.6),
-                       plt.Line2D([], [], color=C_GRN, lw=1.7)],
+                       plt.Line2D([], [], color=C_GRN, lw=2.0)],
               labels=["value", "slope"], ncol=2, frameon=False, fontsize=6.4,
               loc="upper center", handlelength=1.2, columnspacing=1.2,
               borderaxespad=0.0, handletextpad=0.4)
-    title(a1, "a", "ten points of one task")
+    title(a1, "a", "values and slopes of one task")
 
-    # (b) the stacked design: value rows over slope rows, one linear system
-    show = 32
+    # (b) the whole system A beta = t: value rows over slope rows, the coefficients,
+    # and the targets, whose 20 cells line up with the rows of A. One support point's
+    # value row, slope row and their two targets are outlined.
+    show = 20
     M = A[:, :show]
     lim = np.percentile(np.abs(M), 98)
+    xb0, xb1 = show + 3.6, show + 5.6          # beta strip
+    xt0, xt1 = show + 9.2, show + 11.2         # t strip
     a2.imshow(M, cmap="RdBu_r", vmin=-lim, vmax=lim, aspect="auto",
               interpolation="nearest", extent=(0, show, 20, 0))
-    a2.axhline(10, color="white", lw=2.0)
+    bl = np.percentile(np.abs(beta[:show]), 98)
+    a2.imshow(beta[:show, None], cmap="RdBu_r", vmin=-bl, vmax=bl, aspect="auto",
+              interpolation="nearest", extent=(xb0, xb1, 20, 0))
+    tl = np.abs(tvec).max()
+    a2.imshow(tvec[:, None], cmap="RdBu_r", vmin=-tl, vmax=tl, aspect="auto",
+              interpolation="nearest", extent=(xt0, xt1, 20, 0))
+    for x0_, x1_ in ((0, show), (xt0, xt1)):
+        a2.plot([x0_, x1_], [10, 10], color="white", lw=2.0)
+    for xm, sym in (((show + xb0) / 2, r"$\times$"), ((xb1 + xt0) / 2, r"$=$")):
+        a2.text(xm, 10, sym, ha="center", va="center", fontsize=7.6)
+    r = 2                                       # the outlined support point
+    for y0, col in ((r, C_VAL), (10 + r, C_GRN)):
+        for x0_, x1_ in ((0, show), (xt0, xt1)):
+            a2.add_patch(Rectangle((x0_, y0), x1_ - x0_, 1, fill=False, ec=col, lw=0.9,
+                                   zorder=5))
     for spine in a2.spines.values():
         spine.set_visible(False)
     a2.set_xticks([]); a2.set_yticks([]); a2.grid(False)
@@ -207,24 +239,35 @@ def fig_teaser():
         a2.add_patch(Rectangle((-2.2, y0 + 0.4), 1.2, 9.2, color=col, clip_on=False,
                                transform=a2.transData))
         a2.text(-3.0, y0 + 5, lab, color=col, fontsize=7.2, ha="right", va="center")
-    a2.set_xlim(-0.01, show)
+    for y0, col, lab in ((0, C_VAL, r"$y$"), (10, C_GRN, r"$\sqrt{w}\,g$")):
+        a2.text(xt1 + 0.6, y0 + 5, lab, color=col, fontsize=6.6, ha="left", va="center")
+    a2.set_xlim(-0.01, xt1 + 6.0)               # room for the y and sqrt(w) g labels
+    a2.set_ylim(20, -0.01)
     a2.set_xlabel(r"$\beta^\ast = (A^{\!\top}\!A + \mu I)^{-1} A^{\!\top} t$",
                   labelpad=4, fontsize=7.2)
-    title(a2, "b", "one linear system $A$")
+    title(a2, "b", r"one system $A\beta = t$")
 
-    # (c) the fitted function and its closed-form derivative, over the truth
+    # (c) the fitted function and its closed-form derivative, over the truth. The
+    # values-only fit also has a derivative; it is drawn dashed to show that the slope
+    # rows are what make u_N' right. teaser.json stores that fit only as a curve on a
+    # 400-point grid, so its derivative is taken by central differences there (on the
+    # Sobolev fit this agrees with the closed form to 0.04, against errors up to 1.3).
+    dvonly = np.gradient(vonly, g)
     a3.plot(g, true, color=C_TRUTH, lw=3.2, zorder=1, solid_capstyle="round")
     a3.plot(g, true_d, color=C_TRUTH_D, lw=3.2, zorder=1, solid_capstyle="round")
+    a3.fill_between(g, true_d, dvonly, color=C_VONLY, alpha=0.28, lw=0, zorder=1.5)
+    a3.plot(g, dvonly, color=C_VONLY, lw=1.1, ls=(0, (3.2, 1.6)), zorder=2)
     a3.plot(g, u, color=C_SOB, lw=1.25, zorder=3)
     a3.plot(g, du, color=C_GRN, lw=1.25, zorder=3)
     a3.plot(xs, ys, "o", color=C_VAL, ms=2.6, mec="white", mew=0.5, zorder=4)
     clean(a3)
+    a3.set_ylim(-1.25 * amp, 2.6 * amp)          # room for the two-row legend
     a3.legend(handles=[plt.Line2D([], [], color=C_SOB, lw=1.25),
                        plt.Line2D([], [], color=C_GRN, lw=1.25),
-                       plt.Line2D([], [], color=C_TRUTH, lw=3.2)],
-              labels=[r"fit $u_N$", r"$u_N'$", "truth"], ncol=3, frameon=False,
-              fontsize=6.4, loc="upper center", handlelength=1.1, columnspacing=0.9,
-              borderaxespad=0.0, handletextpad=0.35)
+                       plt.Line2D([], [], color=C_VONLY, lw=1.0, ls=(0, (3.2, 1.6)))],
+              labels=[r"fit $u_N$", r"$u_N'$", r"$u_N'$ from values only"], ncol=2,
+              frameon=False, fontsize=6.0, loc="upper center", handlelength=1.1,
+              columnspacing=0.8, borderaxespad=0.0, handletextpad=0.3)
     title(a3, "c", "fit and its derivative")
 
     # (d) the same training budget, spent two ways

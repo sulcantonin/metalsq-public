@@ -20,7 +20,7 @@ This repository contains the `metalsq` package and everything behind the paper
 ```
 metalsq/      the package (torch and numpy only)
 tests/        unit tests of the package
-examples/     two short examples of the package, and the beam-tuning experiment of Sec. 4.3
+examples/     two short examples of the package, and the beam-tuning experiment of Sec. 5.3
 reproduce/    research scripts, stored results, data and LaTeX source of the paper
 docs/         the project page
 ```
@@ -110,7 +110,7 @@ cd paper/nldl2027 && ./build.sh           # clean LaTeX build with page and refe
 [`reproduce/README.md`](reproduce/README.md) lists, for every table and figure, the
 result file and the command that produced it.
 
-### Beam tuning on ARES (Sec. 4.3, App. K)
+### Beam tuning on ARES (Sec. 5.3, App. K)
 
 The closed-loop experiment on DESY's ARES experimental area is in `examples/`. It
 needs more than the package:
@@ -126,11 +126,12 @@ pip install cheetah-accelerator scikit-learn scipy botorch matplotlib
 | `bo_desy.py` | DESY's Bayesian-optimisation protocol |
 | `beam_structure.py`, `beam_full.py` | the surrogate models, their meta-training, the tuning loop, and the choice of variants on development tasks |
 | `beam_final.py` | all methods on the 300 trials (Table 4) |
-| `beam_time.py`, `beam_machine_time.py` | error after every measurement and the machine-time model (Sec. 4.3) |
-| `beam_robust.py`, `beam_noise_tail.py` | the robustness scenarios (Table 5) and the trials with a lost beam |
+| `beam_time.py`, `beam_machine_time.py` | error after every measurement and the machine-time model (Sec. 5.3, App. K) |
+| `beam_robust.py`, `beam_noise_tail.py` | the imperfect-model scenario of Sec. 5.3; the noise, hysteresis and wide scenarios and the lost-beam trials are kept for the record but are not in the paper, whose meta-training has no readout noise or hysteresis |
 | `ares_agent_check.py` | our copy of DESY's agent against every step of their published runs, and its error with and without clipped magnets |
-| `ares_grid.py`, `desy_runs.py` | DESY's grid of targets over the full range (Table 6), read from their Zenodo record 7853721 |
-| `figure_ares_screen.py` | Fig. 2: writes the TikZ picture that the paper inputs and one PNG per screen |
+| `ares_grid.py`, `desy_runs.py` | DESY's grid of targets over the full range (Table 5), read from their Zenodo record 7853721 |
+| `figure_ares_screen.py` | Fig. 4: writes the TikZ picture that the paper inputs and one PNG per screen (the published PNGs were afterwards recoloured on white) |
+| `ares_envelope.py` | the beam envelope along the beamline for Fig. 3, drawn by `reproduce/paper/nldl2027/make_ares_scheme.py` |
 
 `examples/results/` holds the per-trial records of these runs (the larger ones
 gzipped) and the trained surrogates, and `reproduce/experiments/ares_summary.py`
@@ -141,6 +142,8 @@ wrappers, and their Bayesian optimisation is re-implemented from their code. Our
 of the agent makes the moves recorded in their published runs at every step. The
 tables hold its magnets to their limits, which their simulation did not do; with free
 magnets its mean error is 11.8 µm instead of 17.1 (the median stays near 4.4). The
+surrogates, gradient descent and the Bayesian optimisation keep each quadrupole's
+polarity fixed, whereas the agent may reverse it. The
 scripts also know a second beamline (`lcls_diag0`), which is not part of this
 repository.
 
@@ -149,8 +152,10 @@ repository.
 The method is meant for smooth, low-dimensional regression families that a sine
 basis represents well. With a near-zero ridge the fit can extrapolate badly away from
 the support points on unfamiliar tasks, and non-smooth targets are hard for a Gaussian
-spectrum. On the paper's real sensor-calibration data it is less accurate than MAML on
-three of four targets. The paper discusses these limits in Sec. 4.5 and 4.6.
+spectrum. On the paper's real sensor-calibration data, with a learned prior mean, it is
+ahead of MAML on two of four targets, but an exact GP and an ALPaCA-style model are
+more accurate on most targets. The paper discusses these limits in Sec. 5.2, 5.5 and
+5.6.
 
 ## Citation
 

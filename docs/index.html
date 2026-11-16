@@ -27,16 +27,16 @@
 html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
-  font: 17px/1.62 Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  font: 18px/1.6 "Times New Roman", Times, serif;
 }
 .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
 .wide { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
 a { color: var(--accent); text-underline-offset: 2px; }
 h1, h2, h3, .sans, table, .btn, nav, figcaption, .stat b {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 header { padding: 64px 0 28px; text-align: center; }
-.venue { font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: .08em;
+.venue { font: 600 13px/1 Arial, Helvetica, sans-serif; letter-spacing: .08em;
   text-transform: uppercase; color: var(--accent); margin: 0 0 18px; }
 h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.13; letter-spacing: -.02em; margin: 0 auto 20px;
   max-width: 17em; text-wrap: balance; }
@@ -157,8 +157,8 @@ footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 22px 0 46
   <p class="eq">β<sup>∗</sup>(σ, μ, w) = (A<sup>⊤</sup>A + μI)<sup>−1</sup> A<sup>⊤</sup>t,&nbsp;&nbsp;
      A = [ H ; √w Γ<sub>1</sub> ; … ; √w Γ<sub>d</sub> ]</p>
   <p>H holds the features at the support points and Γ<sub>k</sub> their derivatives along coordinate k, which are the
-  same features shifted by a quarter period and scaled by the frequency. Read as a kernel method, the solve is
-  gradient-enhanced kriging with random features: σ is a length-scale, μ a noise-to-prior ratio and w the ratio of
+  same features shifted by a quarter period and scaled by the frequency. As a kernel method, the solve is
+  gradient-enhanced kriging with random features, in which σ is a length-scale, μ a noise-to-prior ratio and w the ratio of
   value noise to derivative noise. The learned scalars follow these predictions in the experiments. Rows for
   differential operators and integrals are built the same way.</p>
 </section>
@@ -185,13 +185,13 @@ footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 22px 0 46
     </tbody>
   </table>
   </div>
-  <p>The derivatives are not the whole story. Without them Meta-LSQ is still 12× better than standard MAML, and MAML
+  <p>Without derivatives Meta-LSQ is still 12× better than standard MAML, and MAML
   given the same derivatives stays 11× worse than Meta-LSQ-Sobolev. An exact GP with shared, meta-learned
   hyperparameters reaches 0.026, so most of the gain over MAML comes from sharing one kernel across tasks and
   adapting with a closed-form solve. Measured by wall-clock time, Meta-LSQ-Sobolev after half a second of training
   is 8.6× more accurate than MLP-MAML after fifty seconds.</p>
 
-  <h3 style="margin-top:26px">What the derivative rows add</h3>
+  <h3 style="margin-top:26px">Derivative rows</h3>
 </div>
 <div class="wide">
   <figure>
@@ -233,19 +233,20 @@ footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 22px 0 46
   <p>From measurements alone the two surrogates are level, and about four times more accurate than the Bayesian
   optimisation, while the agent has the lowest median. Its mean is above the surrogates' because we hold its magnets to their
   limits, which DESY's simulation did not do; without that it is 11.8 µm. With derivatives
-  from a model of the beamline, Meta-LSQ is the most accurate method. On DESY's simulated grid of targets over the
+  from a model of the beamline, Meta-LSQ is slightly more accurate than ALPaCA-style and well ahead of gradient
+  descent. On DESY's simulated grid of targets over the
   full range of the environment (beam sizes up to 2 mm), the values-only loops end at a median of 7.3 µm, against
   14.4 for the agent and 41.9 for the Bayesian optimisation; the agent is level with the surrogates on targets below
   0.5 mm.</p>
 </div>
 <div class="wide">
   <figure>
-    <div class="frame scroll"><img src="assets/ares_screens.png" width="1931" height="1601" loading="lazy"
-      alt="Top: the ARES beamline with three quadrupoles and two steerers before the screen, and the measure, fit, propose loop. Below: the simulated screen for five methods after 1, 10, 20, 50 and 150 measurements on one trial, with the target drawn as a dashed ellipse and the final differences magnified five times."></div>
+    <div class="frame scroll"><img src="assets/ares_screens.png" width="1900" height="1340" loading="lazy"
+      alt="The simulated screen for five methods after 1, 10, 20, 50 and 150 measurements on one trial, with the target drawn as a dashed ellipse and the final differences magnified five times."></div>
     <figcaption>The simulated screen on the trial where Meta-LSQ with derivatives ends closest to its median, at the
       best setting found so far, with the mean absolute error of the four beam parameters. The dashed ellipse is the
-      target, and the top row shows the beamline to scale and the loop of the surrogate methods. All of this is simulation; no method here was run
-      on the machine.</figcaption>
+      target, and the last column shows the final beam against it with the differences magnified five times. All
+      of this is simulation; no method here was run on the machine.</figcaption>
   </figure>
 </div>
 </section>
@@ -254,19 +255,21 @@ footer { border-top: 1px solid var(--rule); margin-top: 30px; padding: 22px 0 46
   <h2>Where it does not work</h2>
   <ul class="limits">
     <li><strong>Real data.</strong> On gas-sensor calibration under drift (UCI Air Quality, no measured derivatives)
-      Meta-LSQ is not the most accurate method: MLP-MAML is better on three of four targets, though it fails on the
-      fourth.</li>
+      Meta-LSQ is not the most accurate method. With a learned prior mean it is ahead of MAML on two of four
+      targets, but an exact GP with the same change and an ALPaCA-style model are more accurate on most targets, and
+      on one target it fails on three of five seeds.</li>
     <li><strong>Non-smooth targets.</strong> Trained on sinusoids and tested on triangle waves, Meta-LSQ stays worse
       than MLP-MAML in the mean even with a ridge floor. A heavier-tailed frequency draw brings the median close.</li>
     <li><strong>The ridge.</strong> With noiseless targets the learned ridge ends up near zero, and on unfamiliar
-      tasks the fit can then take large values away from the data. In-sample criteria such as generalised
-      cross-validation cannot supply a floor, because they tend to a finite value as the ridge vanishes. The ridge
-      has to come from a noise model.</li>
+      tasks the fit can then take large values away from the data. Outside the span of the basis, in-sample
+      criteria such as generalised cross-validation choose too small a ridge, because they tend to a finite value as
+      the ridge vanishes, so the floor has to come from a noise model.</li>
     <li><strong>A learned encoder is about as good.</strong> An ALPaCA-style model is about as accurate in class,
       level in beam tuning from values, and transfers better out of class.</li>
     <li><strong>Beam tuning caveats.</strong> The surrogate loop reverses a quadrupole about 240 times per run
       against 8 for the agent, which costs time on magnets with hysteresis. With derivatives from an imperfect model
-      both surrogates end near 11 µm, worse than Meta-LSQ from values alone on the same trials (8.8 µm).</li>
+      both surrogates end near 11 µm, worse than Meta-LSQ from values alone on the same trials (8.8 µm). The
+      surrogates search with each quadrupole's polarity fixed, while the agent may reverse it.</li>
   </ul>
 </section>
 
